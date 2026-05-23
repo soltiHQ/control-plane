@@ -29,17 +29,17 @@ const (
 
 // Config holds the full application configuration.
 type Config struct {
-	HTTP          httpserver.Config     `yaml:"http"           envconfig:"HTTP"`
-	HTTPDiscovery httpserver.Config     `yaml:"http_discovery" envconfig:"HTTP_DISCOVERY"`
-	GRPC          grpcserver.Config     `yaml:"grpc"           envconfig:"GRPC"`
-	Sync          syncrunner.Config     `yaml:"sync"           envconfig:"SYNC"`
-	Lifecycle     lifecycle.Config      `yaml:"lifecycle"      envconfig:"LIFECYCLE"`
-	Triggers      htmx.Config           `yaml:"triggers"       envconfig:"TRIGGERS"`
-	Server        server.Config         `yaml:"server"         envconfig:"SERVER"`
-	Auth          auth.Config           `yaml:"auth"           envconfig:"AUTH"`
-	CORS          middleware.CORSConfig `yaml:"cors"           envconfig:"CORS"`
-	Cluster       cluster.Config        `yaml:"cluster"        envconfig:"CLUSTER"`
-	Streams       middleware.StreamsConfig `yaml:"streams"     envconfig:"STREAMS"`
+	HTTP          httpserver.Config        `yaml:"http"           envconfig:"HTTP"`
+	HTTPDiscovery httpserver.Config        `yaml:"http_discovery" envconfig:"HTTP_DISCOVERY"`
+	GRPC          grpcserver.Config        `yaml:"grpc"           envconfig:"GRPC"`
+	Sync          syncrunner.Config        `yaml:"sync"           envconfig:"SYNC"`
+	Lifecycle     lifecycle.Config         `yaml:"lifecycle"      envconfig:"LIFECYCLE"`
+	Triggers      htmx.Config              `yaml:"triggers"       envconfig:"TRIGGERS"`
+	Server        server.Config            `yaml:"server"         envconfig:"SERVER"`
+	Auth          auth.Config              `yaml:"auth"           envconfig:"AUTH"`
+	CORS          middleware.CORSConfig    `yaml:"cors"           envconfig:"CORS"`
+	Cluster       cluster.Config           `yaml:"cluster"        envconfig:"CLUSTER"`
+	Streams       middleware.StreamsConfig `yaml:"streams"        envconfig:"STREAMS"`
 }
 
 // Default returns the default development configuration.
