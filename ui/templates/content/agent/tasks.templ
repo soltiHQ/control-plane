@@ -58,7 +58,7 @@ templ TaskResults(agentID string, items []proxyv1.Task, total int, q string, off
 		hx-include="#tasks-search"
 	>
 		<div id="tasks-rows" class={ list.StripedClass }>
-			@TaskRows(items)
+			@TaskRows(agentID, items)
 			if nextOffset(offset, len(items)) < total {
 				@list.Sentinel("tasks-sentinel", tasksURL(agentID, q, nextOffset(offset, len(items))), "tasks-rows")
 			}
@@ -67,17 +67,17 @@ templ TaskResults(agentID string, items []proxyv1.Task, total int, q string, off
 }
 
 // TaskRows renders table rows for a slice of tasks.
-templ TaskRows(items []proxyv1.Task) {
+templ TaskRows(agentID string, items []proxyv1.Task) {
 	if len(items) == 0 {
 		@status.NotFound("No tasks found")
 	} else {
 		for _, t := range items {
-			@taskRow(t)
+			@taskRow(agentID, t)
 		}
 	}
 }
 
-templ taskRow(t proxyv1.Task) {
+templ taskRow(agentID string, t proxyv1.Task) {
 	<div class="px-5 py-3 space-y-1.5">
 		<div class="flex items-center justify-between gap-3">
 			<div class="flex items-center gap-2 min-w-0">
@@ -101,6 +101,8 @@ templ taskRow(t proxyv1.Task) {
 				{ t.Error }
 			</div>
 		}
+
+		@TaskLogs(agentID, t.ID)
 	</div>
 }
 

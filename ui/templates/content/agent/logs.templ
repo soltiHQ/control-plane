@@ -1,0 +1,104 @@
+package agent
+
+import (
+	"github.com/soltiHQ/control-plane/internal/uikit/routepath"
+)
+
+// TaskLogs renders a collapsible live-tail viewer for a single task. When
+// the user expands it, an inline script opens an EventSource against the
+// CP-side bridge endpoint and appends every line to the pre block.
+//
+// Per-task `OutputEventProto` envelope is parsed client-side: chunks
+// carry base64-encoded UTF-8 lines (proto `bytes` field); run boundaries
+// surface as synthetic markers in the log; lagged events show a banner.
+templ TaskLogs(agentID, taskID string) {
+	<details class="mt-2 group">
+		<summary class="text-[11px] text-muted cursor-pointer select-none hover:text-fg">
+			Show logs
+		</summary>
+		<div
+			class="mt-2 rounded border border-border bg-bg-soft"
+			data-task-id={ taskID }
+			data-stream-url={ routepath.ApiAgentTaskLogs(agentID, taskID) }
+		>
+			<pre class="task-logs-pre h-48 overflow-auto p-2 text-[11px] font-mono leading-snug text-fg whitespace-pre-wrap break-words"></pre>
+		</div>
+	</details>
+	@taskLogsScriptOnce()
+}
+
+// taskLogsScriptOnce installs the client-side stream handler exactly once
+// per page. Uses a sentinel data-attr on <body>; subsequent task rows
+// reuse the same wiring.
+templ taskLogsScriptOnce() {
+	<script>
+	(function(){
+		if (window.__taskLogsInstalled) return;
+		window.__taskLogsInstalled = true;
+
+		// Decode protobuf `bytes` field (base64) to a UTF-8 string.
+		function b64ToText(b64) {
+			try {
+				const bin = atob(b64);
+				const bytes = new Uint8Array(bin.length);
+				for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+				return new TextDecoder('utf-8').decode(bytes);
+			} catch (_) { return ''; }
+		}
+
+		function append(pre, line) {
+			const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 16;
+			pre.appendChild(document.createTextNode(line + '\n'));
+			if (atBottom) pre.scrollTop = pre.scrollHeight;
+		}
+
+		function openStream(host) {
+			const url = host.getAttribute('data-stream-url');
+			const pre = host.querySelector('.task-logs-pre');
+			if (!url || !pre || host.__es) return;
+
+			const es = new EventSource(url);
+			host.__es = es;
+
+			es.onmessage = function(ev) {
+				let payload;
+				try { payload = JSON.parse(ev.data); }
+				catch(_) { return; }
+
+				if (payload.chunk) {
+					const line = b64ToText(payload.chunk.line || '');
+					if (line) append(pre, line);
+					return;
+				}
+				if (payload.runStarted) {
+					append(pre, '--- run #' + (payload.runStarted.attempt || '?') + ' started ---');
+					return;
+				}
+				if (payload.runFinished) {
+					const code = (payload.runFinished.exitCode != null) ? ' exit=' + payload.runFinished.exitCode : '';
+					append(pre, '--- run #' + (payload.runFinished.attempt || '?') + ' finished' + code + ' ---');
+					return;
+				}
+				if (payload.lagged) {
+					append(pre, '--- lagged: ' + (payload.lagged.skipped || 0) + ' events dropped ---');
+				}
+			};
+			es.onerror = function() {
+				// Browser auto-reconnects on transient drops; close on details collapse.
+			};
+		}
+
+		function closeStream(host) {
+			if (host.__es) { host.__es.close(); host.__es = null; }
+		}
+
+		document.addEventListener('toggle', function(ev) {
+			const det = ev.target;
+			if (!(det instanceof HTMLDetailsElement)) return;
+			const host = det.querySelector('[data-stream-url]');
+			if (!host) return;
+			if (det.open) openStream(host); else closeStream(host);
+		}, true);
+	})();
+	</script>
+}

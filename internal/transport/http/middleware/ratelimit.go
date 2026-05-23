@@ -52,3 +52,13 @@ func (s *statusRecorder) WriteHeader(code int) {
 	s.status = code
 	s.ResponseWriter.WriteHeader(code)
 }
+
+// Flush forwards to the underlying writer when it implements http.Flusher.
+// Required for SSE / chunked responses — without it the assertion
+// `w.(http.Flusher)` in the handler returns false and frames buffer
+// indefinitely.
+func (s *statusRecorder) Flush() {
+	if f, ok := s.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}

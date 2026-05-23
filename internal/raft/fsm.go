@@ -2,16 +2,18 @@ package raft
 
 import (
 	"context"
-	"encoding/gob"
 	"fmt"
 	"io"
 	"time"
 
 	hraft "github.com/hashicorp/raft"
+	"google.golang.org/protobuf/proto"
 
+	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
 	"github.com/soltiHQ/control-plane/domain/wire"
 	"github.com/soltiHQ/control-plane/internal/event"
 	"github.com/soltiHQ/control-plane/internal/storage"
+	"github.com/soltiHQ/control-plane/internal/storage/inmemory"
 )
 
 // Compile-time check.
@@ -35,23 +37,23 @@ func NewFSM(store storage.Storage, hub *event.Hub) *FSM {
 	return &FSM{store: store, hub: hub}
 }
 
-// Apply decodes the log entry, runs store ops under a single WithTx, and
+// Apply decodes the proto Command, runs store ops under one WithTx, and
 // fires event ops on the local hub afterwards.
 func (f *FSM) Apply(l *hraft.Log) any {
-	cmd, err := DecodeCommand(l.Data)
+	cmd, err := decodeCommand(l.Data)
 	if err != nil {
 		return err
 	}
 	ctx := context.Background()
 
-	// Split ops: store-ops go through WithTx, event-ops are applied
+	// Split ops: store ops go through WithTx, event ops are applied
 	// directly on the hub after the tx commits successfully.
 	var (
-		storeOps []Op
-		eventOps []Op
+		storeOps []*genv1.Op
+		eventOps []*genv1.Op
 	)
-	for _, op := range cmd.Ops {
-		if isEventOp(op.Code) {
+	for _, op := range cmd.GetOps() {
+		if isEventOp(op) {
 			eventOps = append(eventOps, op)
 		} else {
 			storeOps = append(storeOps, op)
@@ -61,8 +63,8 @@ func (f *FSM) Apply(l *hraft.Log) any {
 	if len(storeOps) > 0 {
 		err := f.store.WithTx(ctx, func(tx storage.Storage) error {
 			for i, op := range storeOps {
-				if err := applyOp(ctx, tx, op); err != nil {
-					return fmt.Errorf("op[%d] %d: %w", i, op.Code, err)
+				if err := applyStoreOp(ctx, tx, op); err != nil {
+					return fmt.Errorf("op[%d] %T: %w", i, op.GetOp(), err)
 				}
 			}
 			return nil
@@ -78,133 +80,231 @@ func (f *FSM) Apply(l *hraft.Log) any {
 	return nil
 }
 
-func isEventOp(c OpCode) bool {
-	return c == OpEventNotify || c == OpEventRecord || c == OpEventDeleteIssues
+// isEventOp reports whether op carries an event-hub mutation rather than
+// a store mutation.
+func isEventOp(op *genv1.Op) bool {
+	switch op.GetOp().(type) {
+	case *genv1.Op_EventNotify, *genv1.Op_EventRecord, *genv1.Op_EventDeleteIssues:
+		return true
+	}
+	return false
 }
 
-func applyEventOp(hub *event.Hub, op Op) {
+// applyEventOp dispatches a hub mutation to the local replica.
+func applyEventOp(hub *event.Hub, op *genv1.Op) {
 	if hub == nil {
 		return
 	}
-	switch op.Code {
-	case OpEventNotify:
-		hub.ApplyLocalNotify(op.EventName)
-	case OpEventRecord:
-		hub.ApplyLocalRecord(op.EventKind, op.EventPayload)
-	case OpEventDeleteIssues:
-		hub.ApplyLocalDeleteIssues(op.EventKind, op.ID)
+	switch v := op.GetOp().(type) {
+	case *genv1.Op_EventNotify:
+		hub.ApplyLocalNotify(v.EventNotify)
+	case *genv1.Op_EventRecord:
+		msg := v.EventRecord
+		hub.ApplyLocalRecord(msg.GetKind(), payloadFromProto(msg.GetPayload()))
+	case *genv1.Op_EventDeleteIssues:
+		msg := v.EventDeleteIssues
+		hub.ApplyLocalDeleteIssues(msg.GetKind(), msg.GetId())
 	}
 }
 
-func applyOp(ctx context.Context, tx storage.Storage, op Op) error {
-	switch op.Code {
-	case OpAgentUpsert:
-		a, err := wire.AgentFromDTO(op.AgentUpsert)
+// applyStoreOp dispatches a store mutation to tx. The variant of op
+// drives the type-switch; each case converts the proto sub-message via
+// wire.*FromProto and calls the corresponding tx method.
+func applyStoreOp(ctx context.Context, tx storage.Storage, op *genv1.Op) error {
+	switch v := op.GetOp().(type) {
+	case *genv1.Op_AgentUpsert:
+		a, err := wire.AgentFromProto(v.AgentUpsert)
 		if err != nil {
 			return err
 		}
 		return tx.UpsertAgent(ctx, a)
-	case OpAgentDelete:
-		return tx.DeleteAgent(ctx, op.ID)
+	case *genv1.Op_AgentDelete:
+		return tx.DeleteAgent(ctx, v.AgentDelete)
 
-	case OpUserUpsert:
-		u, err := wire.UserFromDTO(op.UserUpsert)
+	case *genv1.Op_UserUpsert:
+		u, err := wire.UserFromProto(v.UserUpsert)
 		if err != nil {
 			return err
 		}
 		return tx.UpsertUser(ctx, u)
-	case OpUserDelete:
-		return tx.DeleteUser(ctx, op.ID)
+	case *genv1.Op_UserDelete:
+		return tx.DeleteUser(ctx, v.UserDelete)
 
-	case OpRoleUpsert:
-		r, err := wire.RoleFromDTO(op.RoleUpsert)
+	case *genv1.Op_RoleUpsert:
+		r, err := wire.RoleFromProto(v.RoleUpsert)
 		if err != nil {
 			return err
 		}
 		return tx.UpsertRole(ctx, r)
-	case OpRoleDelete:
-		return tx.DeleteRole(ctx, op.ID)
+	case *genv1.Op_RoleDelete:
+		return tx.DeleteRole(ctx, v.RoleDelete)
 
-	case OpCredentialUpsert:
-		c, err := wire.CredentialFromDTO(op.CredentialUpsert)
+	case *genv1.Op_CredentialUpsert:
+		c, err := wire.CredentialFromProto(v.CredentialUpsert)
 		if err != nil {
 			return err
 		}
 		return tx.UpsertCredential(ctx, c)
-	case OpCredentialDelete:
-		return tx.DeleteCredential(ctx, op.ID)
+	case *genv1.Op_CredentialDelete:
+		return tx.DeleteCredential(ctx, v.CredentialDelete)
 
-	case OpVerifierUpsert:
-		v, err := wire.VerifierFromDTO(op.VerifierUpsert)
+	case *genv1.Op_VerifierUpsert:
+		ver, err := wire.VerifierFromProto(v.VerifierUpsert)
 		if err != nil {
 			return err
 		}
-		return tx.UpsertVerifier(ctx, v)
-	case OpVerifierDelete:
-		return tx.DeleteVerifier(ctx, op.ID)
-	case OpVerifierDeleteByCredential:
-		return tx.DeleteVerifierByCredential(ctx, op.ID)
+		return tx.UpsertVerifier(ctx, ver)
+	case *genv1.Op_VerifierDelete:
+		return tx.DeleteVerifier(ctx, v.VerifierDelete)
+	case *genv1.Op_VerifierDeleteByCred:
+		return tx.DeleteVerifierByCredential(ctx, v.VerifierDeleteByCred)
 
-	case OpSessionCreate:
-		s, err := wire.SessionFromDTO(op.SessionCreate)
+	case *genv1.Op_SessionCreate:
+		s, err := wire.SessionFromProto(v.SessionCreate)
 		if err != nil {
 			return err
 		}
 		return tx.CreateSession(ctx, s)
-	case OpSessionDelete:
-		return tx.DeleteSession(ctx, op.ID)
-	case OpSessionDeleteByUser:
-		return tx.DeleteSessionsByUser(ctx, op.ID)
-	case OpSessionRotateRefresh:
-		return tx.RotateRefresh(ctx, op.ID, op.RefreshHash, time.Unix(0, op.ExpiresAtNs))
-	case OpSessionRevoke:
-		return tx.RevokeSession(ctx, op.ID, time.Unix(0, op.RevokedAtNs))
+	case *genv1.Op_SessionDelete:
+		return tx.DeleteSession(ctx, v.SessionDelete)
+	case *genv1.Op_SessionDeleteByUser:
+		return tx.DeleteSessionsByUser(ctx, v.SessionDeleteByUser)
+	case *genv1.Op_SessionRotateRefresh:
+		m := v.SessionRotateRefresh
+		return tx.RotateRefresh(ctx, m.GetId(), m.GetRefreshHash(), time.Unix(0, m.GetExpiresAtNs()))
+	case *genv1.Op_SessionRevoke:
+		m := v.SessionRevoke
+		return tx.RevokeSession(ctx, m.GetId(), time.Unix(0, m.GetRevokedAtNs()))
 
-	case OpSpecUpsert:
-		ts, err := wire.SpecFromDTO(op.SpecUpsert)
+	case *genv1.Op_SpecUpsert:
+		ts, err := wire.SpecFromProto(v.SpecUpsert)
 		if err != nil {
 			return err
 		}
 		return tx.UpsertSpec(ctx, ts)
-	case OpSpecDelete:
-		return tx.DeleteSpec(ctx, op.ID)
+	case *genv1.Op_SpecDelete:
+		return tx.DeleteSpec(ctx, v.SpecDelete)
 
-	case OpRolloutUpsert:
-		r, err := wire.RolloutFromDTO(op.RolloutUpsert)
+	case *genv1.Op_RolloutUpsert:
+		r, err := wire.RolloutFromProto(v.RolloutUpsert)
 		if err != nil {
 			return err
 		}
 		return tx.UpsertRollout(ctx, r)
-	case OpRolloutDelete:
-		return tx.DeleteRollout(ctx, op.ID)
-	case OpRolloutDeleteBySpec:
-		return tx.DeleteRolloutsBySpec(ctx, op.ID)
+	case *genv1.Op_RolloutDelete:
+		return tx.DeleteRollout(ctx, v.RolloutDelete)
+	case *genv1.Op_RolloutDeleteBySpec:
+		return tx.DeleteRolloutsBySpec(ctx, v.RolloutDeleteBySpec)
 
 	default:
-		return fmt.Errorf("unknown op code %d", op.Code)
+		return fmt.Errorf("%w: %T", wire.ErrUnknownOp, op.GetOp())
 	}
 }
 
-// Snapshot returns a point-in-time snapshot for log compaction.
-type fsmSnapshot struct{}
-
+// Snapshot captures the current store state for log compaction.
+//
+// The returned hraft.FSMSnapshot holds a decoupled copy of every entity
+// (shallow-copied maps under each store's read lock, values are clones).
+// Apply may run concurrently with the subsequent Persist call — the
+// snapshot is not observed by later mutations.
+//
+// Currently only *inmemory.Store is supported; passing any other backend
+// at construction time results in a descriptive error here.
 func (f *FSM) Snapshot() (hraft.FSMSnapshot, error) {
-	// A full state dump would be written here; Phase 1 uses the empty
-	// snapshot so the log is self-sufficient for recovery. Acceptable for
-	// low-write CP workloads. Followers that miss too many entries will
-	// re-bootstrap via fresh log replay.
-	return &fsmSnapshot{}, nil
+	store, ok := f.store.(*inmemory.Store)
+	if !ok {
+		return nil, fmt.Errorf("raft snapshot: requires *inmemory.Store, got %T", f.store)
+	}
+	return &fsmSnapshot{content: store.SnapshotForRaft()}, nil
 }
 
+// Restore replaces the FSM state with the contents of r.
+//
+// The proto blob is fully decoded into memory before the live store is
+// swapped, so a truncated or corrupted stream leaves the store untouched.
 func (f *FSM) Restore(r io.ReadCloser) error {
 	defer r.Close()
-	// Nothing to restore in the empty-snapshot scheme; log replay rebuilds
-	// state.
-	var discard []byte
-	dec := gob.NewDecoder(r)
-	_ = dec.Decode(&discard)
+
+	store, ok := f.store.(*inmemory.Store)
+	if !ok {
+		return fmt.Errorf("raft restore: requires *inmemory.Store, got %T", f.store)
+	}
+
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return fmt.Errorf("raft restore: read: %w", err)
+	}
+	var snap genv1.Snapshot
+	if err := proto.Unmarshal(data, &snap); err != nil {
+		return fmt.Errorf("raft restore: unmarshal: %w", err)
+	}
+
+	hdr := snap.GetHeader()
+	if hdr.GetMagic() != snapshotMagic {
+		return fmt.Errorf("raft restore: bad magic %q (want %q)", hdr.GetMagic(), snapshotMagic)
+	}
+	if hdr.GetVersion() != snapshotVersion {
+		return fmt.Errorf("raft restore: unsupported version %d (want %d)", hdr.GetVersion(), snapshotVersion)
+	}
+
+	content := inmemory.SnapshotContent{}
+	for _, m := range snap.GetAgents() {
+		a, err := wire.AgentFromProto(m)
+		if err != nil {
+			return fmt.Errorf("raft restore: agent: %w", err)
+		}
+		content.Agents = append(content.Agents, a)
+	}
+	for _, m := range snap.GetUsers() {
+		u, err := wire.UserFromProto(m)
+		if err != nil {
+			return fmt.Errorf("raft restore: user: %w", err)
+		}
+		content.Users = append(content.Users, u)
+	}
+	for _, m := range snap.GetRoles() {
+		ro, err := wire.RoleFromProto(m)
+		if err != nil {
+			return fmt.Errorf("raft restore: role: %w", err)
+		}
+		content.Roles = append(content.Roles, ro)
+	}
+	for _, m := range snap.GetCredentials() {
+		c, err := wire.CredentialFromProto(m)
+		if err != nil {
+			return fmt.Errorf("raft restore: credential: %w", err)
+		}
+		content.Credentials = append(content.Credentials, c)
+	}
+	for _, m := range snap.GetVerifiers() {
+		ver, err := wire.VerifierFromProto(m)
+		if err != nil {
+			return fmt.Errorf("raft restore: verifier: %w", err)
+		}
+		content.Verifiers = append(content.Verifiers, ver)
+	}
+	for _, m := range snap.GetSessions() {
+		s, err := wire.SessionFromProto(m)
+		if err != nil {
+			return fmt.Errorf("raft restore: session: %w", err)
+		}
+		content.Sessions = append(content.Sessions, s)
+	}
+	for _, m := range snap.GetSpecs() {
+		sp, err := wire.SpecFromProto(m)
+		if err != nil {
+			return fmt.Errorf("raft restore: spec: %w", err)
+		}
+		content.Specs = append(content.Specs, sp)
+	}
+	for _, m := range snap.GetRollouts() {
+		ro, err := wire.RolloutFromProto(m)
+		if err != nil {
+			return fmt.Errorf("raft restore: rollout: %w", err)
+		}
+		content.Rollouts = append(content.Rollouts, ro)
+	}
+
+	store.RestoreFromSnapshot(content)
 	return nil
 }
-
-func (s *fsmSnapshot) Persist(sink hraft.SnapshotSink) error { return sink.Close() }
-func (s *fsmSnapshot) Release()                              {}

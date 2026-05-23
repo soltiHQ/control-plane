@@ -9,6 +9,7 @@ import (
 	"github.com/soltiHQ/control-plane/domain/enum"
 	"github.com/soltiHQ/control-plane/internal/auth/identity"
 	"github.com/soltiHQ/control-plane/internal/event"
+	"github.com/soltiHQ/control-plane/internal/loghub"
 	"github.com/soltiHQ/control-plane/internal/proxy"
 	"github.com/soltiHQ/control-plane/internal/service"
 	"github.com/soltiHQ/control-plane/internal/service/access"
@@ -17,6 +18,7 @@ import (
 	"github.com/soltiHQ/control-plane/internal/service/session"
 	"github.com/soltiHQ/control-plane/internal/service/spec"
 	"github.com/soltiHQ/control-plane/internal/service/user"
+	"github.com/soltiHQ/control-plane/internal/transport/http/middleware"
 	"github.com/soltiHQ/control-plane/internal/transport/http/responder"
 	"github.com/soltiHQ/control-plane/internal/transport/http/response"
 	"github.com/soltiHQ/control-plane/internal/transport/http/route"
@@ -46,6 +48,8 @@ type API struct {
 	userSVC       *user.Service
 	proxyPool     *proxy.Pool
 	hub           *event.Hub
+	logHub        *loghub.Hub
+	streamLimit   *middleware.StreamLimiter
 
 	logger zerolog.Logger
 }
@@ -61,6 +65,8 @@ func NewAPI(
 	specSVC *spec.Service,
 	proxyPool *proxy.Pool,
 	hub *event.Hub,
+	logHub *loghub.Hub,
+	streamLimit *middleware.StreamLimiter,
 ) *API {
 	if accessSVC == nil {
 		panic(service.ErrNilService)
@@ -97,6 +103,8 @@ func NewAPI(
 		userSVC:       userSVC,
 		proxyPool:     proxyPool,
 		hub:           hub,
+		logHub:        logHub,
+		streamLimit:   streamLimit,
 	}
 }
 
@@ -107,6 +115,7 @@ func (a *API) Routes(mux *http.ServeMux, auth route.BaseMW, _ route.PermMW, comm
 	route.HandleFunc(mux, routepath.ApiUser, a.UsersRouter, append(common, auth)...)
 	route.HandleFunc(mux, routepath.ApiSession, a.SessionsRouter, append(common, auth)...)
 	route.HandleFunc(mux, routepath.ApiAgents, a.Agents, append(common, auth)...)
+	route.HandleFunc(mux, "GET /api/v1/agents/{id}/tasks/{taskID}/logs/stream", a.AgentTaskLogsStream, append(common, auth, middleware.StreamLimit(a.streamLimit))...)
 	route.HandleFunc(mux, routepath.ApiAgent, a.AgentsRouter, append(common, auth)...)
 	route.HandleFunc(mux, routepath.ApiSpecs, a.Specs, append(common, auth)...)
 	route.HandleFunc(mux, routepath.ApiSpec, a.SpecsRouter, append(common, auth)...)

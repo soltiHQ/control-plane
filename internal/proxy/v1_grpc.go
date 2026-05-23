@@ -126,6 +126,34 @@ func (p *grpcProxyV1) DeleteTask(ctx context.Context, taskID string) error {
 	return nil
 }
 
+// StreamTaskLogs opens the agent's StreamTaskLogs server-stream, forwards
+// each OutputEventProto into a channel, and closes it on EOF, ctx
+// cancellation, or transport error. Channel buffer is 64 — typical chunk
+// cadence (~10 lines/sec) is well below; bursts are absorbed.
+func (p *grpcProxyV1) StreamTaskLogs(ctx context.Context, taskID string) (<-chan *genv1.OutputEventProto, error) {
+	client := genv1.NewSoltiApiClient(p.conn)
+	stream, err := client.StreamTaskLogs(ctx, &genv1.StreamTaskLogsRequest{TaskId: taskID})
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrStreamTaskLogs, err)
+	}
+	ch := make(chan *genv1.OutputEventProto, 64)
+	go func() {
+		defer close(ch)
+		for {
+			ev, err := stream.Recv()
+			if err != nil {
+				return
+			}
+			select {
+			case ch <- ev:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return ch, nil
+}
+
 // taskDataToProxy converts a proto TaskData (nested metadata + spec + status)
 // into the flat proxy-level Task type consumed by podium's own REST/UI.
 func taskDataToProxy(t *genv1.TaskData) proxyv1.Task {

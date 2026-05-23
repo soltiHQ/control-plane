@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 
+	"google.golang.org/protobuf/encoding/protojson"
+
 	"github.com/soltiHQ/control-plane/domain/enum"
 	"github.com/soltiHQ/control-plane/internal/proxy"
 	"github.com/soltiHQ/control-plane/internal/service/agent"
@@ -127,6 +129,72 @@ func (a *API) agentPatchLabels(w http.ResponseWriter, r *http.Request, mode http
 	htmx.Trigger(w, htmx.AgentUpdate)
 	a.hub.Notify(htmx.AgentUpdate)
 	response.NoContent(w, r)
+}
+
+// AgentTaskLogsStream subscribes to the (agent, task) log fanout hub and
+// relays events as SSE to the UI client. The hub maintains one backing
+// agent connection per (agent, task) regardless of how many UI clients
+// are watching; slow readers receive a synthetic LaggedProto envelope and
+// keep going instead of dragging the rest down.
+//
+// Frame format: `data: <protojson-OutputEventProto>\n\n`.
+func (a *API) AgentTaskLogsStream(w http.ResponseWriter, r *http.Request) {
+	agentID := r.PathValue("id")
+	taskID := r.PathValue("taskID")
+	mode := httpctx.ModeFromRequest(r)
+
+	if agentID == "" || taskID == "" {
+		response.BadRequest(w, r, mode)
+		return
+	}
+
+	ch, unsub, err := a.logHub.Subscribe(r.Context(), agentID, taskID)
+	if err != nil {
+		a.logger.Warn().Err(err).
+			Str("agent_id", agentID).
+			Str("task_id", taskID).
+			Msg("agent task logs: subscribe failed")
+		response.Unavailable(w, r, mode)
+		return
+	}
+	defer unsub()
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	flusher, _ := w.(http.Flusher)
+	if flusher != nil {
+		flusher.Flush()
+	}
+
+	marshaler := protojson.MarshalOptions{EmitUnpopulated: true}
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case ev, ok := <-ch:
+			if !ok {
+				return
+			}
+			payload, err := marshaler.Marshal(ev)
+			if err != nil {
+				continue
+			}
+			if _, err := w.Write([]byte("data: ")); err != nil {
+				return
+			}
+			if _, err := w.Write(payload); err != nil {
+				return
+			}
+			if _, err := w.Write([]byte("\n\n")); err != nil {
+				return
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+	}
 }
 
 // TODO: remove "q" - need to understand a correct way for getting tasks from agent with paginator and etc.

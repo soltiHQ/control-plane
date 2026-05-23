@@ -33,6 +33,9 @@ var (
 	ErrListTaskRuns = errors.New("proxy: list task runs")
 	// ErrDeleteTask indicates a DeleteTask call failed.
 	ErrDeleteTask = errors.New("proxy: delete task")
+	// ErrStreamTaskLogs indicates a StreamTaskLogs call failed before any
+	// events arrived. Errors mid-stream are surfaced by closing the channel.
+	ErrStreamTaskLogs = errors.New("proxy: stream task logs")
 	// ErrNilPool indicates a required *Pool dependency is nil.
 	ErrNilPool = errors.New("proxy: nil pool")
 )

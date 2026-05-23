@@ -39,6 +39,7 @@ type Config struct {
 	Auth          auth.Config           `yaml:"auth"           envconfig:"AUTH"`
 	CORS          middleware.CORSConfig `yaml:"cors"           envconfig:"CORS"`
 	Cluster       cluster.Config        `yaml:"cluster"        envconfig:"CLUSTER"`
+	Streams       middleware.StreamsConfig `yaml:"streams"     envconfig:"STREAMS"`
 }
 
 // Default returns the default development configuration.
@@ -56,6 +57,10 @@ func Default() Config {
 			AllowOrigins: []string{"*"},
 		},
 		Cluster: cluster.DefaultConfig(),
+		Streams: middleware.StreamsConfig{
+			MaxPerIP:         10,
+			SubscriberBuffer: 64,
+		},
 	}
 }
 

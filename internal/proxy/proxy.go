@@ -59,4 +59,14 @@ type AgentProxy interface {
 	// currently registered. Single teardown primitive: there is no
 	// "cancel without purge" on the wire (taskvisor has no paused state).
 	DeleteTask(ctx context.Context, taskID string) error
+
+	// StreamTaskLogs subscribes to the live stdout/stderr stream of a task.
+	// Returns a channel of typed events (OutputChunk, RunStarted, RunFinished,
+	// Lagged). The channel is closed when the agent finishes the stream, the
+	// context is cancelled, or the transport drops. Pre-stream errors
+	// (dial, bad task id, capability not advertised) return immediately and
+	// wrap [ErrStreamTaskLogs]; mid-stream errors are surfaced by closing
+	// the channel — callers should treat early close as either normal end
+	// or transport failure and act accordingly.
+	StreamTaskLogs(ctx context.Context, taskID string) (<-chan *genv1.OutputEventProto, error)
 }

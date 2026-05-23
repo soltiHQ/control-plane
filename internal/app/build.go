@@ -21,6 +21,7 @@ import (
 	"github.com/soltiHQ/control-plane/internal/config"
 	"github.com/soltiHQ/control-plane/internal/event"
 	"github.com/soltiHQ/control-plane/internal/handler"
+	"github.com/soltiHQ/control-plane/internal/loghub"
 	"github.com/soltiHQ/control-plane/internal/proxy"
 	raftpkg "github.com/soltiHQ/control-plane/internal/raft"
 	"github.com/soltiHQ/control-plane/internal/service/access"
@@ -136,7 +137,9 @@ func waitForLeader(ctx context.Context, l cluster.Leadership, timeout time.Durat
 
 func buildMainHandler(cfg config.Config, logger zerolog.Logger, svc services, authModel *kit.Auth, proxyPool *proxy.Pool, eventHub *event.Hub, leadership cluster.Leadership) http.Handler {
 	var (
-		apiHandler    = handler.NewAPI(logger, svc.user, svc.access, svc.session, svc.credential, svc.agent, svc.spec, proxyPool, eventHub)
+		logHub        = buildLogHub(logger, svc.agent, proxyPool, cfg.Streams)
+		streamLimit   = middleware.NewStreamLimiter(cfg.Streams.MaxPerIP)
+		apiHandler    = handler.NewAPI(logger, svc.user, svc.access, svc.session, svc.credential, svc.agent, svc.spec, proxyPool, eventHub, logHub, streamLimit)
 		authMW        = middleware.Auth(authModel.Verifier, authModel.Session)
 		uiHandler     = handler.NewUI(logger, svc.access, svc.spec, eventHub)
 		staticHandler = handler.NewStatic(logger)
@@ -181,6 +184,27 @@ func buildDiscoveryHandler(logger zerolog.Logger, agentSVC *agent.Service, event
 	return h
 }
 
+// buildLogHub wires the (agent, task) log fanout hub. The OpenFunc resolves
+// the agent, gets its proxy, and opens the underlying StreamTaskLogs — all
+// inside a closure so the hub itself stays decoupled from agent/proxy.
+func buildLogHub(logger zerolog.Logger, agentSVC *agent.Service, proxyPool *proxy.Pool, cfg middleware.StreamsConfig) *loghub.Hub {
+	open := func(ctx context.Context, agentID, taskID string) (<-chan *genv1.OutputEventProto, error) {
+		ag, err := agentSVC.Get(ctx, agentID)
+		if err != nil {
+			return nil, err
+		}
+		if ag.Endpoint() == "" {
+			return nil, fmt.Errorf("agent %q has no endpoint", agentID)
+		}
+		p, err := proxyPool.Get(ag.Endpoint(), ag.EndpointType(), ag.APIVersion())
+		if err != nil {
+			return nil, err
+		}
+		return p.StreamTaskLogs(ctx, taskID)
+	}
+	return loghub.New(open, loghub.Options{SubscriberBuffer: cfg.SubscriberBuffer})
+}
+
 // addrPort extracts the port number from a listen address like ":8080" or
 // "0.0.0.0:8080". Returns 0 if the address is malformed.
 func addrPort(addr string) int {
@@ -211,6 +235,13 @@ func buildGRPCServer(logger zerolog.Logger, agentSVC *agent.Service, eventHub *e
 				interceptor.UnaryLogger(logger),
 				interceptor.UnaryRateLimit(limiter),
 				interceptor.UnaryLeader(leadership, interceptor.LeaderOptions{IsWrite: isWrite}),
+			),
+			grpc.ChainStreamInterceptor(
+				interceptor.StreamRecovery(logger),
+				interceptor.StreamRequestID(),
+				interceptor.StreamLogger(logger),
+				interceptor.StreamRateLimit(limiter),
+				interceptor.StreamLeader(leadership, interceptor.LeaderOptions{IsWrite: isWrite}),
 			),
 		)
 		grpcDiscovery = handler.NewGRPCDiscovery(logger, agentSVC, eventHub)

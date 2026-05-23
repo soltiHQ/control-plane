@@ -8,6 +8,7 @@ import (
 
 	hraft "github.com/hashicorp/raft"
 
+	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
 	"github.com/soltiHQ/control-plane/domain/enum"
 	"github.com/soltiHQ/control-plane/domain/model"
 	"github.com/soltiHQ/control-plane/domain/wire"
@@ -21,8 +22,9 @@ var _ storage.Storage = (*Store)(nil)
 const applyTimeout = 5 * time.Second
 
 // Store wraps an inner storage.Storage. Reads go local (eventual
-// consistency). Writes are encoded as Commands and submitted to raft.Apply;
-// the FSM applies them to the inner store on every replica in log order.
+// consistency). Writes are encoded as protobuf Commands and submitted to
+// raft.Apply; the FSM applies them to the inner store on every replica
+// in log order.
 //
 // Write flow:
 //
@@ -53,8 +55,8 @@ func NewStore(inner storage.Storage, r *hraft.Raft) *Store {
 }
 
 // apply submits a Command to Raft, waiting up to applyTimeout for commit.
-func (s *Store) apply(cmd Command) error {
-	data, err := cmd.Encode()
+func (s *Store) apply(ops []*genv1.Op) error {
+	data, err := encodeCommand(ops)
 	if err != nil {
 		return err
 	}
@@ -70,7 +72,7 @@ func (s *Store) apply(cmd Command) error {
 	return nil
 }
 
-func (s *Store) applyOp(op Op) error { return s.apply(Command{Ops: []Op{op}}) }
+func (s *Store) applyOp(op *genv1.Op) error { return s.apply([]*genv1.Op{op}) }
 
 // === Agents ===
 
@@ -81,7 +83,7 @@ func (s *Store) UpsertAgent(ctx context.Context, a *model.Agent) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return s.applyOp(Op{Code: OpAgentUpsert, AgentUpsert: wire.AgentToDTO(a)})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_AgentUpsert{AgentUpsert: wire.AgentToProto(a)}})
 }
 
 func (s *Store) GetAgent(ctx context.Context, id string) (*model.Agent, error) {
@@ -93,7 +95,7 @@ func (s *Store) ListAgents(ctx context.Context, f storage.AgentFilter, o storage
 }
 
 func (s *Store) DeleteAgent(ctx context.Context, id string) error {
-	return s.applyOp(Op{Code: OpAgentDelete, ID: id})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_AgentDelete{AgentDelete: id}})
 }
 
 // === Users ===
@@ -102,7 +104,7 @@ func (s *Store) UpsertUser(ctx context.Context, u *model.User) error {
 	if u == nil {
 		return storage.ErrInvalidArgument
 	}
-	return s.applyOp(Op{Code: OpUserUpsert, UserUpsert: wire.UserToDTO(u)})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_UserUpsert{UserUpsert: wire.UserToProto(u)}})
 }
 
 func (s *Store) GetUser(ctx context.Context, id string) (*model.User, error) {
@@ -118,7 +120,7 @@ func (s *Store) ListUsers(ctx context.Context, f storage.UserFilter, o storage.L
 }
 
 func (s *Store) DeleteUser(ctx context.Context, id string) error {
-	return s.applyOp(Op{Code: OpUserDelete, ID: id})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_UserDelete{UserDelete: id}})
 }
 
 // === Roles ===
@@ -127,7 +129,7 @@ func (s *Store) UpsertRole(ctx context.Context, r *model.Role) error {
 	if r == nil {
 		return storage.ErrInvalidArgument
 	}
-	return s.applyOp(Op{Code: OpRoleUpsert, RoleUpsert: wire.RoleToDTO(r)})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_RoleUpsert{RoleUpsert: wire.RoleToProto(r)}})
 }
 
 func (s *Store) GetRole(ctx context.Context, id string) (*model.Role, error) {
@@ -147,7 +149,7 @@ func (s *Store) ListRoles(ctx context.Context, f storage.RoleFilter, o storage.L
 }
 
 func (s *Store) DeleteRole(ctx context.Context, id string) error {
-	return s.applyOp(Op{Code: OpRoleDelete, ID: id})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_RoleDelete{RoleDelete: id}})
 }
 
 // === Credentials ===
@@ -156,7 +158,7 @@ func (s *Store) UpsertCredential(ctx context.Context, c *model.Credential) error
 	if c == nil {
 		return storage.ErrInvalidArgument
 	}
-	return s.applyOp(Op{Code: OpCredentialUpsert, CredentialUpsert: wire.CredentialToDTO(c)})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_CredentialUpsert{CredentialUpsert: wire.CredentialToProto(c)}})
 }
 
 func (s *Store) GetCredential(ctx context.Context, id string) (*model.Credential, error) {
@@ -172,7 +174,7 @@ func (s *Store) ListCredentialsByUser(ctx context.Context, userID string) ([]*mo
 }
 
 func (s *Store) DeleteCredential(ctx context.Context, id string) error {
-	return s.applyOp(Op{Code: OpCredentialDelete, ID: id})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_CredentialDelete{CredentialDelete: id}})
 }
 
 // === Verifiers ===
@@ -181,7 +183,7 @@ func (s *Store) UpsertVerifier(ctx context.Context, v *model.Verifier) error {
 	if v == nil {
 		return storage.ErrInvalidArgument
 	}
-	return s.applyOp(Op{Code: OpVerifierUpsert, VerifierUpsert: wire.VerifierToDTO(v)})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_VerifierUpsert{VerifierUpsert: wire.VerifierToProto(v)}})
 }
 
 func (s *Store) GetVerifier(ctx context.Context, id string) (*model.Verifier, error) {
@@ -193,11 +195,11 @@ func (s *Store) GetVerifierByCredential(ctx context.Context, credID string) (*mo
 }
 
 func (s *Store) DeleteVerifier(ctx context.Context, id string) error {
-	return s.applyOp(Op{Code: OpVerifierDelete, ID: id})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_VerifierDelete{VerifierDelete: id}})
 }
 
 func (s *Store) DeleteVerifierByCredential(ctx context.Context, credID string) error {
-	return s.applyOp(Op{Code: OpVerifierDeleteByCredential, ID: credID})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_VerifierDeleteByCred{VerifierDeleteByCred: credID}})
 }
 
 // === Sessions ===
@@ -206,7 +208,7 @@ func (s *Store) CreateSession(ctx context.Context, ss *model.Session) error {
 	if ss == nil {
 		return storage.ErrInvalidArgument
 	}
-	return s.applyOp(Op{Code: OpSessionCreate, SessionCreate: wire.SessionToDTO(ss)})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_SessionCreate{SessionCreate: wire.SessionToProto(ss)}})
 }
 
 func (s *Store) GetSession(ctx context.Context, id string) (*model.Session, error) {
@@ -218,28 +220,27 @@ func (s *Store) ListSessionsByUser(ctx context.Context, userID string) ([]*model
 }
 
 func (s *Store) RotateRefresh(ctx context.Context, sessionID string, newHash []byte, newExpiresAt time.Time) error {
-	return s.applyOp(Op{
-		Code:        OpSessionRotateRefresh,
-		ID:          sessionID,
-		RefreshHash: append([]byte(nil), newHash...),
-		ExpiresAtNs: newExpiresAt.UnixNano(),
-	})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_SessionRotateRefresh{
+		SessionRotateRefresh: &genv1.SessionRotateRefreshMsg{
+			Id:          sessionID,
+			RefreshHash: append([]byte(nil), newHash...),
+			ExpiresAtNs: newExpiresAt.UnixNano(),
+		},
+	}})
 }
 
 func (s *Store) RevokeSession(ctx context.Context, sessionID string, revokedAt time.Time) error {
-	return s.applyOp(Op{
-		Code:        OpSessionRevoke,
-		ID:          sessionID,
-		RevokedAtNs: revokedAt.UnixNano(),
-	})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_SessionRevoke{
+		SessionRevoke: &genv1.SessionRevokeMsg{Id: sessionID, RevokedAtNs: revokedAt.UnixNano()},
+	}})
 }
 
 func (s *Store) DeleteSession(ctx context.Context, id string) error {
-	return s.applyOp(Op{Code: OpSessionDelete, ID: id})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_SessionDelete{SessionDelete: id}})
 }
 
 func (s *Store) DeleteSessionsByUser(ctx context.Context, userID string) error {
-	return s.applyOp(Op{Code: OpSessionDeleteByUser, ID: userID})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_SessionDeleteByUser{SessionDeleteByUser: userID}})
 }
 
 // === Specs ===
@@ -248,7 +249,7 @@ func (s *Store) UpsertSpec(ctx context.Context, ts *model.Spec) error {
 	if ts == nil {
 		return storage.ErrInvalidArgument
 	}
-	return s.applyOp(Op{Code: OpSpecUpsert, SpecUpsert: wire.SpecToDTO(ts)})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_SpecUpsert{SpecUpsert: wire.SpecToProto(ts)}})
 }
 
 func (s *Store) GetSpec(ctx context.Context, id string) (*model.Spec, error) {
@@ -260,7 +261,7 @@ func (s *Store) ListSpecs(ctx context.Context, f storage.SpecFilter, o storage.L
 }
 
 func (s *Store) DeleteSpec(ctx context.Context, id string) error {
-	return s.applyOp(Op{Code: OpSpecDelete, ID: id})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_SpecDelete{SpecDelete: id}})
 }
 
 // === Rollouts ===
@@ -269,7 +270,7 @@ func (s *Store) UpsertRollout(ctx context.Context, r *model.Rollout) error {
 	if r == nil {
 		return storage.ErrInvalidArgument
 	}
-	return s.applyOp(Op{Code: OpRolloutUpsert, RolloutUpsert: wire.RolloutToDTO(r)})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_RolloutUpsert{RolloutUpsert: wire.RolloutToProto(r)}})
 }
 
 func (s *Store) GetRollout(ctx context.Context, id string) (*model.Rollout, error) {
@@ -281,11 +282,11 @@ func (s *Store) ListRollouts(ctx context.Context, f storage.RolloutFilter, o sto
 }
 
 func (s *Store) DeleteRollout(ctx context.Context, id string) error {
-	return s.applyOp(Op{Code: OpRolloutDelete, ID: id})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_RolloutDelete{RolloutDelete: id}})
 }
 
 func (s *Store) DeleteRolloutsBySpec(ctx context.Context, specID string) error {
-	return s.applyOp(Op{Code: OpRolloutDeleteBySpec, ID: specID})
+	return s.applyOp(&genv1.Op{Op: &genv1.Op_RolloutDeleteBySpec{RolloutDeleteBySpec: specID}})
 }
 
 // === FilterFactory — passthrough ===
@@ -300,9 +301,9 @@ func (s *Store) BuildSpecFilter(c storage.SpecQueryCriteria) storage.SpecFilter 
 
 // === WithTx — recording batch ===
 
-// WithTx runs fn against a recording view that captures every mutation as an
-// Op. At end of fn, the captured ops are submitted to Raft as one Command
-// and applied atomically on every replica.
+// WithTx runs fn against a recording view that captures every mutation as
+// a proto Op. At end of fn the captured ops are submitted to Raft as one
+// Command and applied atomically on every replica.
 //
 // fn's reads within the tx see:
 //  1. Values written earlier in the same fn (the overlay), then
@@ -333,5 +334,5 @@ func (s *Store) WithTx(ctx context.Context, fn func(tx storage.Storage) error) e
 	if len(view.ops) == 0 {
 		return nil
 	}
-	return s.apply(Command{Ops: view.ops})
+	return s.apply(view.ops)
 }

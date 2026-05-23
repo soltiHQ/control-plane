@@ -72,6 +72,12 @@ func (f *fakeProxy) ListTaskRuns(ctx context.Context, id string) (*proxyv1.TaskR
 	return &proxyv1.TaskRunListResponse{}, nil
 }
 
+func (f *fakeProxy) StreamTaskLogs(ctx context.Context, _ string) (<-chan *genv1.OutputEventProto, error) {
+	ch := make(chan *genv1.OutputEventProto)
+	close(ch)
+	return ch, nil
+}
+
 type fakePool struct{ ap *fakeProxy }
 
 func (p *fakePool) Get(_ string, _ enum.EndpointType, _ enum.APIVersion) (proxy.AgentProxy, error) {

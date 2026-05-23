@@ -58,6 +58,9 @@ var (
 	ApiAgentByID      = func(id string) string { return ApiAgent + id }
 	ApiAgentLabels    = func(id string) string { return ApiAgent + id + "/labels" }
 	ApiAgentTasks     = func(id string) string { return ApiAgent + id + "/tasks" }
+	ApiAgentTaskLogs  = func(agentID, taskID string) string {
+		return ApiAgent + agentID + "/tasks/" + taskID + "/logs/stream"
+	}
 
 	PageSpecInfoByID   = func(id string) string { return PageSpecInfo + id }
 	PageSpecEditByID   = func(id string) string { return PageSpecEdit + id }
