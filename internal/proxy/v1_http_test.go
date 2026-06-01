@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	taskv1 "github.com/soltiHQ/control-plane/api/gen/solti/task/v1"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -29,7 +29,7 @@ func TestHttpProxyV1_SubmitTask_ReturnsTaskID(t *testing.T) {
 		// Drain so we don't trip test server's internal assertions.
 		_, _ = io.Copy(io.Discard, r.Body)
 
-		body, err := protojson.Marshal(&genv1.SubmitTaskResponse{TaskId: want})
+		body, err := protojson.Marshal(&taskv1.SubmitTaskResponse{TaskId: want})
 		if err != nil {
 			t.Fatalf("marshal response: %v", err)
 		}
@@ -42,7 +42,7 @@ func TestHttpProxyV1_SubmitTask_ReturnsTaskID(t *testing.T) {
 	p := &httpProxyV1{endpoint: srv.URL, client: srv.Client()}
 
 	got, err := p.SubmitTask(context.Background(), TaskSubmission{
-		Spec: &genv1.CreateSpec{Slot: "my-slot"},
+		Spec: &taskv1.CreateSpec{Slot: "my-slot"},
 	})
 	if err != nil {
 		t.Fatalf("SubmitTask: %v", err)
@@ -57,7 +57,7 @@ func TestHttpProxyV1_SubmitTask_ReturnsTaskID(t *testing.T) {
 // rather than pretend-it-is-synced.
 func TestHttpProxyV1_SubmitTask_RejectsEmptyTaskID(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := protojson.Marshal(&genv1.SubmitTaskResponse{TaskId: ""})
+		body, _ := protojson.Marshal(&taskv1.SubmitTaskResponse{TaskId: ""})
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write(body)
@@ -66,7 +66,7 @@ func TestHttpProxyV1_SubmitTask_RejectsEmptyTaskID(t *testing.T) {
 
 	p := &httpProxyV1{endpoint: srv.URL, client: srv.Client()}
 
-	_, err := p.SubmitTask(context.Background(), TaskSubmission{Spec: &genv1.CreateSpec{Slot: "s"}})
+	_, err := p.SubmitTask(context.Background(), TaskSubmission{Spec: &taskv1.CreateSpec{Slot: "s"}})
 	if err == nil {
 		t.Fatal("expected error for empty task_id")
 	}
@@ -92,7 +92,7 @@ func TestHttpProxyV1_SubmitTask_Surfaces400Envelope(t *testing.T) {
 
 	p := &httpProxyV1{endpoint: srv.URL, client: srv.Client()}
 
-	_, err := p.SubmitTask(context.Background(), TaskSubmission{Spec: &genv1.CreateSpec{Slot: ""}})
+	_, err := p.SubmitTask(context.Background(), TaskSubmission{Spec: &taskv1.CreateSpec{Slot: ""}})
 	if err == nil {
 		t.Fatal("expected error for 400")
 	}

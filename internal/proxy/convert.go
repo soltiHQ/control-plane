@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	taskv1 "github.com/soltiHQ/control-plane/api/gen/solti/task/v1"
 	"github.com/soltiHQ/control-plane/domain/enum"
 	"github.com/soltiHQ/control-plane/domain/model"
 )
@@ -24,7 +24,7 @@ import (
 //   - unknown TaskKindType
 //   - the UI-supplied KindConfig cannot be round-tripped into proto
 //     (invalid field names or value types — see solti.v1.TaskKind).
-func SpecToProto(ts *model.Spec) (*genv1.CreateSpec, error) {
+func SpecToProto(ts *model.Spec) (*taskv1.CreateSpec, error) {
 	if ts == nil {
 		return nil, fmt.Errorf("proxy: nil spec")
 	}
@@ -35,12 +35,12 @@ func SpecToProto(ts *model.Spec) (*genv1.CreateSpec, error) {
 	}
 
 	b := ts.Backoff()
-	out := &genv1.CreateSpec{
+	out := &taskv1.CreateSpec{
 		Slot:      ts.Slot(),
 		Kind:      tk,
 		TimeoutMs: clampU64(ts.TimeoutMs()),
 		Restart:   restartStrategyToProto(ts.RestartType()),
-		Backoff: &genv1.BackoffStrategy{
+		Backoff: &taskv1.BackoffStrategy{
 			Jitter:  jitterStrategyToProto(b.Jitter),
 			FirstMs: clampU64(b.FirstMs),
 			MaxMs:   clampU64(b.MaxMs),
@@ -52,7 +52,7 @@ func SpecToProto(ts *model.Spec) (*genv1.CreateSpec, error) {
 		// the only admission that makes the "old task not fully
 		// torn-down yet" race safe. We overwrite whatever the spec
 		// carries — the UI doesn't even expose the field anymore.
-		Admission: genv1.AdmissionStrategy_ADMISSION_STRATEGY_REPLACE,
+		Admission: taskv1.AdmissionStrategy_ADMISSION_STRATEGY_REPLACE,
 	}
 
 	if ts.RestartType() == enum.RestartAlways && ts.IntervalMs() > 0 {
@@ -70,7 +70,7 @@ func SpecToProto(ts *model.Spec) (*genv1.CreateSpec, error) {
 // CreateSpecWirePreview marshals a proto CreateSpec into canonical proto-JSON
 // bytes suitable for displaying in the UI as the exact payload the
 // control-plane would send to an agent.
-func CreateSpecWirePreview(spec *genv1.CreateSpec) (json.RawMessage, error) {
+func CreateSpecWirePreview(spec *taskv1.CreateSpec) (json.RawMessage, error) {
 	if spec == nil {
 		return nil, nil
 	}
@@ -96,7 +96,7 @@ func CreateSpecWirePreview(spec *genv1.CreateSpec) (json.RawMessage, error) {
 // misnamed fields (`{"mode":{...}}`) get dropped. We therefore run a
 // post-decode sanity check that raises a loud error instead of handing a
 // half-populated TaskKind to the agent.
-func buildTaskKind(kt enum.TaskKindType, cfg map[string]any) (*genv1.TaskKind, error) {
+func buildTaskKind(kt enum.TaskKindType, cfg map[string]any) (*taskv1.TaskKind, error) {
 	name, err := taskKindName(kt)
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func buildTaskKind(kt enum.TaskKindType, cfg map[string]any) (*genv1.TaskKind, e
 	if err != nil {
 		return nil, fmt.Errorf("marshal kind config: %w", err)
 	}
-	var tk genv1.TaskKind
+	var tk taskv1.TaskKind
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(payload, &tk); err != nil {
 		return nil, fmt.Errorf("protojson decode: %w", err)
 	}
@@ -120,7 +120,7 @@ func buildTaskKind(kt enum.TaskKindType, cfg map[string]any) (*genv1.TaskKind, e
 // protojson dropped the entire oneof payload (the common symptom is a caller
 // that wrapped it in an extra envelope field), we report exactly which key
 // the caller supplied that we could not map onto the proto schema.
-func sanityCheckTaskKind(tk *genv1.TaskKind, kt enum.TaskKindType, cfg map[string]any) error {
+func sanityCheckTaskKind(tk *taskv1.TaskKind, kt enum.TaskKindType, cfg map[string]any) error {
 	if tk.GetKind() == nil {
 		return fmt.Errorf("proxy: TaskKind.kind unset after decode for %q (likely bad JSON shape)", kt)
 	}
@@ -171,31 +171,31 @@ func taskKindName(kt enum.TaskKindType) (string, error) {
 	}
 }
 
-func restartStrategyToProto(rt enum.RestartType) genv1.RestartStrategy {
+func restartStrategyToProto(rt enum.RestartType) taskv1.RestartStrategy {
 	switch rt {
 	case enum.RestartNever:
-		return genv1.RestartStrategy_RESTART_STRATEGY_NEVER
+		return taskv1.RestartStrategy_RESTART_STRATEGY_NEVER
 	case enum.RestartOnFailure:
-		return genv1.RestartStrategy_RESTART_STRATEGY_ON_FAILURE
+		return taskv1.RestartStrategy_RESTART_STRATEGY_ON_FAILURE
 	case enum.RestartAlways:
-		return genv1.RestartStrategy_RESTART_STRATEGY_ALWAYS
+		return taskv1.RestartStrategy_RESTART_STRATEGY_ALWAYS
 	default:
-		return genv1.RestartStrategy_RESTART_STRATEGY_UNSPECIFIED
+		return taskv1.RestartStrategy_RESTART_STRATEGY_UNSPECIFIED
 	}
 }
 
-func jitterStrategyToProto(j enum.JitterStrategy) genv1.JitterStrategy {
+func jitterStrategyToProto(j enum.JitterStrategy) taskv1.JitterStrategy {
 	switch j {
 	case enum.JitterNone:
-		return genv1.JitterStrategy_JITTER_STRATEGY_NONE
+		return taskv1.JitterStrategy_JITTER_STRATEGY_NONE
 	case enum.JitterFull:
-		return genv1.JitterStrategy_JITTER_STRATEGY_FULL
+		return taskv1.JitterStrategy_JITTER_STRATEGY_FULL
 	case enum.JitterEqual:
-		return genv1.JitterStrategy_JITTER_STRATEGY_EQUAL
+		return taskv1.JitterStrategy_JITTER_STRATEGY_EQUAL
 	case enum.JitterDecorrelated:
-		return genv1.JitterStrategy_JITTER_STRATEGY_DECORRELATED
+		return taskv1.JitterStrategy_JITTER_STRATEGY_DECORRELATED
 	default:
-		return genv1.JitterStrategy_JITTER_STRATEGY_UNSPECIFIED
+		return taskv1.JitterStrategy_JITTER_STRATEGY_UNSPECIFIED
 	}
 }
 

@@ -11,7 +11,8 @@ import (
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	discoverv1 "github.com/soltiHQ/control-plane/api/gen/solti/discover/v1"
+	taskv1 "github.com/soltiHQ/control-plane/api/gen/solti/task/v1"
 	"github.com/soltiHQ/control-plane/domain/enum"
 	"github.com/soltiHQ/control-plane/internal/auth/kit"
 	"github.com/soltiHQ/control-plane/internal/auth/ratelimit"
@@ -188,7 +189,7 @@ func buildDiscoveryHandler(logger zerolog.Logger, agentSVC *agent.Service, event
 // the agent, gets its proxy, and opens the underlying StreamTaskLogs — all
 // inside a closure so the hub itself stays decoupled from agent/proxy.
 func buildLogHub(logger zerolog.Logger, agentSVC *agent.Service, proxyPool *proxy.Pool, cfg middleware.StreamsConfig) *loghub.Hub {
-	open := func(ctx context.Context, agentID, taskID string) (<-chan *genv1.OutputEventProto, error) {
+	open := func(ctx context.Context, agentID, taskID string) (<-chan *taskv1.StreamTaskLogsResponse, error) {
 		ag, err := agentSVC.Get(ctx, agentID)
 		if err != nil {
 			return nil, err
@@ -223,7 +224,7 @@ func buildGRPCServer(logger zerolog.Logger, agentSVC *agent.Service, eventHub *e
 	// Write methods (must run on leader). Sync is the only agent-facing
 	// mutation; everything else is pure read.
 	writeMethods := map[string]struct{}{
-		genv1.DiscoverService_Sync_FullMethodName: {},
+		discoverv1.DiscoverService_Sync_FullMethodName: {},
 	}
 	isWrite := func(full string) bool { _, ok := writeMethods[full]; return ok }
 
@@ -246,6 +247,6 @@ func buildGRPCServer(logger zerolog.Logger, agentSVC *agent.Service, eventHub *e
 		)
 		grpcDiscovery = handler.NewGRPCDiscovery(logger, agentSVC, eventHub)
 	)
-	genv1.RegisterDiscoverServiceServer(srv, grpcDiscovery)
+	discoverv1.RegisterDiscoverServiceServer(srv, grpcDiscovery)
 	return srv
 }

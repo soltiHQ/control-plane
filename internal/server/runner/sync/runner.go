@@ -28,7 +28,7 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	taskv1 "github.com/soltiHQ/control-plane/api/gen/solti/task/v1"
 	"github.com/soltiHQ/control-plane/domain/enum"
 	"github.com/soltiHQ/control-plane/domain/model"
 	"github.com/soltiHQ/control-plane/internal/cluster"
@@ -295,7 +295,7 @@ func (r *Runner) reconcileSubmit(ctx context.Context, ss *model.Rollout) {
 
 // prepareSubmit loads spec + agent + proxy + proto conversion. Any
 // failure at this stage calls markFailed and returns ok=false.
-func (r *Runner) prepareSubmit(ctx context.Context, ss *model.Rollout) (*model.Spec, proxy.AgentProxy, *genv1.CreateSpec, bool) {
+func (r *Runner) prepareSubmit(ctx context.Context, ss *model.Rollout) (*model.Spec, proxy.AgentProxy, *taskv1.CreateSpec, bool) {
 	ts, err := r.store.GetSpec(ctx, ss.SpecID())
 	if err != nil {
 		r.markFailed(ctx, ss, "spec not found: "+err.Error())

@@ -134,10 +134,10 @@ func (a *API) agentPatchLabels(w http.ResponseWriter, r *http.Request, mode http
 // AgentTaskLogsStream subscribes to the (agent, task) log fanout hub and
 // relays events as SSE to the UI client. The hub maintains one backing
 // agent connection per (agent, task) regardless of how many UI clients
-// are watching; slow readers receive a synthetic LaggedProto envelope and
+// are watching; slow readers receive a synthetic Lagged envelope and
 // keep going instead of dragging the rest down.
 //
-// Frame format: `data: <protojson-OutputEventProto>\n\n`.
+// Frame format: `data: <protojson-StreamTaskLogsResponse>\n\n`.
 func (a *API) AgentTaskLogsStream(w http.ResponseWriter, r *http.Request) {
 	agentID := r.PathValue("id")
 	taskID := r.PathValue("taskID")

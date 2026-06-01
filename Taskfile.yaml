@@ -38,6 +38,7 @@ tasks:
             solti/task api/proto/solti/task
             solti/discover api/proto/solti/discover
             solti/raft api/proto/solti/raft
+      - task: golang:proto
 
   gen:
     desc: Generate code.

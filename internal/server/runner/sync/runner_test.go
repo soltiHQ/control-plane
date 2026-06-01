@@ -8,7 +8,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	taskv1 "github.com/soltiHQ/control-plane/api/gen/solti/task/v1"
 	proxyv1 "github.com/soltiHQ/control-plane/api/proxy/v1"
 	"github.com/soltiHQ/control-plane/domain/enum"
 	"github.com/soltiHQ/control-plane/domain/model"
@@ -22,7 +22,7 @@ import (
 // fakeProxy records every call. Tests configure return values up front
 // and assert on the recorded call sequence afterwards.
 type fakeProxy struct {
-	submits      []*genv1.CreateSpec
+	submits      []*taskv1.CreateSpec
 	submitResp   []string // pop from front, one per Submit call
 	submitErr    []error
 	deletes      []string
@@ -72,8 +72,8 @@ func (f *fakeProxy) ListTaskRuns(ctx context.Context, id string) (*proxyv1.TaskR
 	return &proxyv1.TaskRunListResponse{}, nil
 }
 
-func (f *fakeProxy) StreamTaskLogs(ctx context.Context, _ string) (<-chan *genv1.OutputEventProto, error) {
-	ch := make(chan *genv1.OutputEventProto)
+func (f *fakeProxy) StreamTaskLogs(ctx context.Context, _ string) (<-chan *taskv1.StreamTaskLogsResponse, error) {
+	ch := make(chan *taskv1.StreamTaskLogsResponse)
 	close(ch)
 	return ch, nil
 }

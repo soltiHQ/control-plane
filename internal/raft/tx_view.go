@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	raftv1 "github.com/soltiHQ/control-plane/api/gen/solti/raft/v1"
 	"github.com/soltiHQ/control-plane/domain/enum"
 	"github.com/soltiHQ/control-plane/domain/model"
 	"github.com/soltiHQ/control-plane/domain/wire"
@@ -23,7 +23,7 @@ import (
 // services' WithTx closures reads a listing after writing to it.
 type txView struct {
 	inner storage.Storage
-	ops   []*genv1.Op
+	ops   []*raftv1.Op
 
 	// Per-entity overlays. key = ID; value = pointer or nil (nil means
 	// "deleted within this tx").
@@ -72,7 +72,7 @@ func (v *txView) UpsertAgent(ctx context.Context, a *model.Agent) error {
 		return storage.ErrInvalidArgument
 	}
 	v.agents[a.ID()] = a
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_AgentUpsert{AgentUpsert: wire.AgentToProto(a)}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_AgentUpsert{AgentUpsert: wire.AgentToProto(a)}})
 	return nil
 }
 
@@ -92,7 +92,7 @@ func (v *txView) ListAgents(ctx context.Context, f storage.AgentFilter, o storag
 
 func (v *txView) DeleteAgent(ctx context.Context, id string) error {
 	v.agents[id] = nil
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_AgentDelete{AgentDelete: id}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_AgentDelete{AgentDelete: id}})
 	return nil
 }
 
@@ -103,7 +103,7 @@ func (v *txView) UpsertUser(ctx context.Context, u *model.User) error {
 		return storage.ErrInvalidArgument
 	}
 	v.users[u.ID()] = u
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_UserUpsert{UserUpsert: wire.UserToProto(u)}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_UserUpsert{UserUpsert: wire.UserToProto(u)}})
 	return nil
 }
 
@@ -127,7 +127,7 @@ func (v *txView) ListUsers(ctx context.Context, f storage.UserFilter, o storage.
 
 func (v *txView) DeleteUser(ctx context.Context, id string) error {
 	v.users[id] = nil
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_UserDelete{UserDelete: id}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_UserDelete{UserDelete: id}})
 	return nil
 }
 
@@ -138,7 +138,7 @@ func (v *txView) UpsertRole(ctx context.Context, r *model.Role) error {
 		return storage.ErrInvalidArgument
 	}
 	v.roles[r.ID()] = r
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_RoleUpsert{RoleUpsert: wire.RoleToProto(r)}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_RoleUpsert{RoleUpsert: wire.RoleToProto(r)}})
 	return nil
 }
 
@@ -166,7 +166,7 @@ func (v *txView) ListRoles(ctx context.Context, f storage.RoleFilter, o storage.
 
 func (v *txView) DeleteRole(ctx context.Context, id string) error {
 	v.roles[id] = nil
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_RoleDelete{RoleDelete: id}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_RoleDelete{RoleDelete: id}})
 	return nil
 }
 
@@ -177,7 +177,7 @@ func (v *txView) UpsertCredential(ctx context.Context, c *model.Credential) erro
 		return storage.ErrInvalidArgument
 	}
 	v.credentials[c.ID()] = c
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_CredentialUpsert{CredentialUpsert: wire.CredentialToProto(c)}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_CredentialUpsert{CredentialUpsert: wire.CredentialToProto(c)}})
 	return nil
 }
 
@@ -201,7 +201,7 @@ func (v *txView) ListCredentialsByUser(ctx context.Context, userID string) ([]*m
 
 func (v *txView) DeleteCredential(ctx context.Context, id string) error {
 	v.credentials[id] = nil
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_CredentialDelete{CredentialDelete: id}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_CredentialDelete{CredentialDelete: id}})
 	return nil
 }
 
@@ -212,7 +212,7 @@ func (v *txView) UpsertVerifier(ctx context.Context, ver *model.Verifier) error 
 		return storage.ErrInvalidArgument
 	}
 	v.verifiers[ver.ID()] = ver
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_VerifierUpsert{VerifierUpsert: wire.VerifierToProto(ver)}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_VerifierUpsert{VerifierUpsert: wire.VerifierToProto(ver)}})
 	return nil
 }
 
@@ -232,12 +232,12 @@ func (v *txView) GetVerifierByCredential(ctx context.Context, credID string) (*m
 
 func (v *txView) DeleteVerifier(ctx context.Context, id string) error {
 	v.verifiers[id] = nil
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_VerifierDelete{VerifierDelete: id}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_VerifierDelete{VerifierDelete: id}})
 	return nil
 }
 
 func (v *txView) DeleteVerifierByCredential(ctx context.Context, credID string) error {
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_VerifierDeleteByCred{VerifierDeleteByCred: credID}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_VerifierDeleteByCred{VerifierDeleteByCred: credID}})
 	return nil
 }
 
@@ -248,7 +248,7 @@ func (v *txView) CreateSession(ctx context.Context, s *model.Session) error {
 		return storage.ErrInvalidArgument
 	}
 	v.sessions[s.ID()] = s
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_SessionCreate{SessionCreate: wire.SessionToProto(s)}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_SessionCreate{SessionCreate: wire.SessionToProto(s)}})
 	return nil
 }
 
@@ -267,8 +267,8 @@ func (v *txView) ListSessionsByUser(ctx context.Context, userID string) ([]*mode
 }
 
 func (v *txView) RotateRefresh(ctx context.Context, sessionID string, newHash []byte, newExpiresAt time.Time) error {
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_SessionRotateRefresh{
-		SessionRotateRefresh: &genv1.SessionRotateRefreshMsg{
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_SessionRotateRefresh{
+		SessionRotateRefresh: &raftv1.SessionRotateRefreshMsg{
 			Id:          sessionID,
 			RefreshHash: append([]byte(nil), newHash...),
 			ExpiresAtNs: newExpiresAt.UnixNano(),
@@ -278,20 +278,20 @@ func (v *txView) RotateRefresh(ctx context.Context, sessionID string, newHash []
 }
 
 func (v *txView) RevokeSession(ctx context.Context, sessionID string, revokedAt time.Time) error {
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_SessionRevoke{
-		SessionRevoke: &genv1.SessionRevokeMsg{Id: sessionID, RevokedAtNs: revokedAt.UnixNano()},
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_SessionRevoke{
+		SessionRevoke: &raftv1.SessionRevokeMsg{Id: sessionID, RevokedAtNs: revokedAt.UnixNano()},
 	}})
 	return nil
 }
 
 func (v *txView) DeleteSession(ctx context.Context, id string) error {
 	v.sessions[id] = nil
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_SessionDelete{SessionDelete: id}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_SessionDelete{SessionDelete: id}})
 	return nil
 }
 
 func (v *txView) DeleteSessionsByUser(ctx context.Context, userID string) error {
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_SessionDeleteByUser{SessionDeleteByUser: userID}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_SessionDeleteByUser{SessionDeleteByUser: userID}})
 	return nil
 }
 
@@ -302,7 +302,7 @@ func (v *txView) UpsertSpec(ctx context.Context, ts *model.Spec) error {
 		return storage.ErrInvalidArgument
 	}
 	v.specs[ts.ID()] = ts
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_SpecUpsert{SpecUpsert: wire.SpecToProto(ts)}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_SpecUpsert{SpecUpsert: wire.SpecToProto(ts)}})
 	return nil
 }
 
@@ -322,7 +322,7 @@ func (v *txView) ListSpecs(ctx context.Context, f storage.SpecFilter, o storage.
 
 func (v *txView) DeleteSpec(ctx context.Context, id string) error {
 	v.specs[id] = nil
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_SpecDelete{SpecDelete: id}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_SpecDelete{SpecDelete: id}})
 	return nil
 }
 
@@ -333,7 +333,7 @@ func (v *txView) UpsertRollout(ctx context.Context, r *model.Rollout) error {
 		return storage.ErrInvalidArgument
 	}
 	v.rollouts[r.ID()] = r
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_RolloutUpsert{RolloutUpsert: wire.RolloutToProto(r)}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_RolloutUpsert{RolloutUpsert: wire.RolloutToProto(r)}})
 	return nil
 }
 
@@ -353,12 +353,12 @@ func (v *txView) ListRollouts(ctx context.Context, f storage.RolloutFilter, o st
 
 func (v *txView) DeleteRollout(ctx context.Context, id string) error {
 	v.rollouts[id] = nil
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_RolloutDelete{RolloutDelete: id}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_RolloutDelete{RolloutDelete: id}})
 	return nil
 }
 
 func (v *txView) DeleteRolloutsBySpec(ctx context.Context, specID string) error {
-	v.ops = append(v.ops, &genv1.Op{Op: &genv1.Op_RolloutDeleteBySpec{RolloutDeleteBySpec: specID}})
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_RolloutDeleteBySpec{RolloutDeleteBySpec: specID}})
 	return nil
 }
 

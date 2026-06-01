@@ -3,7 +3,7 @@
 // (agentID, taskID) and closes it when the last subscriber leaves.
 //
 // Slow-subscriber policy: per-subscriber buffer; on overflow events are
-// dropped and a LaggedProto sentinel is enqueued so the client can render
+// dropped and a Lagged sentinel is enqueued so the client can render
 // "N events skipped" without falling further behind the source.
 package loghub
 
@@ -13,7 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	taskv1 "github.com/soltiHQ/control-plane/api/gen/solti/task/v1"
 )
 
 // ErrSourceClosed is returned by Subscribe when the underlying source has
@@ -24,7 +24,7 @@ var ErrSourceClosed = errors.New("loghub: source closed")
 
 // OpenFunc opens a backing log stream for a given (agentID, taskID).
 // The returned channel must be closed by the producer when the stream ends.
-type OpenFunc func(ctx context.Context, agentID, taskID string) (<-chan *genv1.OutputEventProto, error)
+type OpenFunc func(ctx context.Context, agentID, taskID string) (<-chan *taskv1.StreamTaskLogsResponse, error)
 
 // Options tunes Hub behaviour. Zero values use safe defaults.
 type Options struct {
@@ -70,9 +70,9 @@ func New(open OpenFunc, opts Options) *Hub {
 //   - The backing agent stream ends naturally — all subscribers' channels
 //     close together.
 //
-// Slow readers receive a synthetic LaggedProto event when they fall behind
+// Slow readers receive a synthetic Lagged event when they fall behind
 // the source, so they can render the gap without polluting later events.
-func (h *Hub) Subscribe(ctx context.Context, agentID, taskID string) (<-chan *genv1.OutputEventProto, func(), error) {
+func (h *Hub) Subscribe(ctx context.Context, agentID, taskID string) (<-chan *taskv1.StreamTaskLogsResponse, func(), error) {
 	k := key{agentID: agentID, taskID: taskID}
 
 	h.mu.Lock()
@@ -124,12 +124,12 @@ type source struct {
 }
 
 type sub struct {
-	ch      chan *genv1.OutputEventProto
+	ch      chan *taskv1.StreamTaskLogsResponse
 	dropped uint64 // atomic; pending Lagged count
 }
 
-func (s *source) addSub(buffer int) (<-chan *genv1.OutputEventProto, func(), error) {
-	sb := &sub{ch: make(chan *genv1.OutputEventProto, buffer)}
+func (s *source) addSub(buffer int) (<-chan *taskv1.StreamTaskLogsResponse, func(), error) {
+	sb := &sub{ch: make(chan *taskv1.StreamTaskLogsResponse, buffer)}
 
 	s.mu.Lock()
 	if s.closed {
@@ -161,7 +161,7 @@ func (s *source) removeSub(sb *sub) {
 // pump reads the backing stream and broadcasts to subscribers until the
 // stream closes (EOF or cancellation). Final shutdown closes any remaining
 // subscriber channels.
-func (s *source) pump(stream <-chan *genv1.OutputEventProto) {
+func (s *source) pump(stream <-chan *taskv1.StreamTaskLogsResponse) {
 	defer s.shutdown()
 	for ev := range stream {
 		s.broadcast(ev)
@@ -171,8 +171,8 @@ func (s *source) pump(stream <-chan *genv1.OutputEventProto) {
 // broadcast sends ev to every subscriber. Non-blocking — if a subscriber's
 // buffer is full, the event is dropped and a pending Lagged count is
 // incremented. The next successful send on that subscriber injects a
-// LaggedProto envelope first so the client can render the gap.
-func (s *source) broadcast(ev *genv1.OutputEventProto) {
+// Lagged envelope first so the client can render the gap.
+func (s *source) broadcast(ev *taskv1.StreamTaskLogsResponse) {
 	s.mu.Lock()
 	subs := make([]*sub, 0, len(s.subs))
 	for sb := range s.subs {
@@ -185,8 +185,8 @@ func (s *source) broadcast(ev *genv1.OutputEventProto) {
 		// drops, try to flush a Lagged event first. If even that doesn't
 		// fit, keep the count for later.
 		if dropped := atomic.LoadUint64(&sb.dropped); dropped > 0 {
-			lagged := &genv1.OutputEventProto{
-				Kind: &genv1.OutputEventProto_Lagged{Lagged: &genv1.LaggedProto{Skipped: dropped}},
+			lagged := &taskv1.StreamTaskLogsResponse{
+				Kind: &taskv1.StreamTaskLogsResponse_Lagged{Lagged: &taskv1.Lagged{Skipped: dropped}},
 			}
 			select {
 			case sb.ch <- lagged:

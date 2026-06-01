@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/structpb"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	raftv1 "github.com/soltiHQ/control-plane/api/gen/solti/raft/v1"
 	"github.com/soltiHQ/control-plane/domain/enum"
 	"github.com/soltiHQ/control-plane/domain/model"
 )
@@ -36,7 +36,7 @@ func timeDurationFromNs(ns int64) time.Duration {
 }
 
 // File implements the canonical wire mapping used by Raft replication:
-// model.X  ↔  genv1.XMsg.
+// model.X  ↔  raftv1.XMsg.
 //
 // ToProto snapshots a domain entity for Raft. FromProto reconstructs it on
 // the receiving replica. Round-trip is byte-for-byte equivalent for every
@@ -46,7 +46,7 @@ func timeDurationFromNs(ns int64) time.Duration {
 // === Agents ===
 
 // AgentToProto serialises a model.Agent for Raft replication.
-func AgentToProto(a *model.Agent) *genv1.AgentMsg {
+func AgentToProto(a *model.Agent) *raftv1.AgentMsg {
 	if a == nil {
 		return nil
 	}
@@ -58,7 +58,7 @@ func AgentToProto(a *model.Agent) *genv1.AgentMsg {
 	for k, v := range a.LabelsAll() {
 		lbl[k] = v
 	}
-	return &genv1.AgentMsg{
+	return &raftv1.AgentMsg{
 		Id:                  a.ID(),
 		Name:                a.Name(),
 		Endpoint:            a.Endpoint(),
@@ -81,7 +81,7 @@ func AgentToProto(a *model.Agent) *genv1.AgentMsg {
 }
 
 // AgentFromProto reconstructs a model.Agent from its Raft representation.
-func AgentFromProto(p *genv1.AgentMsg) (*model.Agent, error) {
+func AgentFromProto(p *raftv1.AgentMsg) (*model.Agent, error) {
 	if p == nil {
 		return nil, nil
 	}
@@ -110,7 +110,7 @@ func AgentFromProto(p *genv1.AgentMsg) (*model.Agent, error) {
 // === Users ===
 
 // UserToProto serialises a model.User for Raft replication.
-func UserToProto(u *model.User) *genv1.UserMsg {
+func UserToProto(u *model.User) *raftv1.UserMsg {
 	if u == nil {
 		return nil
 	}
@@ -119,7 +119,7 @@ func UserToProto(u *model.User) *genv1.UserMsg {
 	for i, p := range perms {
 		sp[i] = string(p)
 	}
-	return &genv1.UserMsg{
+	return &raftv1.UserMsg{
 		Id:          u.ID(),
 		Subject:     u.Subject(),
 		Email:       u.Email(),
@@ -133,7 +133,7 @@ func UserToProto(u *model.User) *genv1.UserMsg {
 }
 
 // UserFromProto reconstructs a model.User from its Raft representation.
-func UserFromProto(p *genv1.UserMsg) (*model.User, error) {
+func UserFromProto(p *raftv1.UserMsg) (*model.User, error) {
 	if p == nil {
 		return nil, nil
 	}
@@ -161,7 +161,7 @@ func UserFromProto(p *genv1.UserMsg) (*model.User, error) {
 // === Roles ===
 
 // RoleToProto serialises a model.Role for Raft replication.
-func RoleToProto(r *model.Role) *genv1.RoleMsg {
+func RoleToProto(r *model.Role) *raftv1.RoleMsg {
 	if r == nil {
 		return nil
 	}
@@ -170,7 +170,7 @@ func RoleToProto(r *model.Role) *genv1.RoleMsg {
 	for i, p := range perms {
 		sp[i] = string(p)
 	}
-	return &genv1.RoleMsg{
+	return &raftv1.RoleMsg{
 		Id:          r.ID(),
 		Name:        r.Name(),
 		Permissions: sp,
@@ -180,7 +180,7 @@ func RoleToProto(r *model.Role) *genv1.RoleMsg {
 }
 
 // RoleFromProto reconstructs a model.Role from its Raft representation.
-func RoleFromProto(p *genv1.RoleMsg) (*model.Role, error) {
+func RoleFromProto(p *raftv1.RoleMsg) (*model.Role, error) {
 	if p == nil {
 		return nil, nil
 	}
@@ -199,7 +199,7 @@ func RoleFromProto(p *genv1.RoleMsg) (*model.Role, error) {
 // === Credentials ===
 
 // CredentialToProto serialises a model.Credential for Raft replication.
-func CredentialToProto(c *model.Credential) *genv1.CredentialMsg {
+func CredentialToProto(c *model.Credential) *raftv1.CredentialMsg {
 	if c == nil {
 		return nil
 	}
@@ -207,7 +207,7 @@ func CredentialToProto(c *model.Credential) *genv1.CredentialMsg {
 	for k, v := range c.SecretsAll() {
 		secrets[k] = v
 	}
-	return &genv1.CredentialMsg{
+	return &raftv1.CredentialMsg{
 		Id:          c.ID(),
 		UserId:      c.UserID(),
 		Auth:        string(c.AuthKind()),
@@ -218,7 +218,7 @@ func CredentialToProto(c *model.Credential) *genv1.CredentialMsg {
 }
 
 // CredentialFromProto reconstructs a model.Credential from its Raft form.
-func CredentialFromProto(p *genv1.CredentialMsg) (*model.Credential, error) {
+func CredentialFromProto(p *raftv1.CredentialMsg) (*model.Credential, error) {
 	if p == nil {
 		return nil, nil
 	}
@@ -237,7 +237,7 @@ func CredentialFromProto(p *genv1.CredentialMsg) (*model.Credential, error) {
 // === Verifiers ===
 
 // VerifierToProto serialises a model.Verifier for Raft replication.
-func VerifierToProto(v *model.Verifier) *genv1.VerifierMsg {
+func VerifierToProto(v *model.Verifier) *raftv1.VerifierMsg {
 	if v == nil {
 		return nil
 	}
@@ -245,7 +245,7 @@ func VerifierToProto(v *model.Verifier) *genv1.VerifierMsg {
 	for k, val := range v.DataAll() {
 		data[k] = val
 	}
-	return &genv1.VerifierMsg{
+	return &raftv1.VerifierMsg{
 		Id:           v.ID(),
 		CredentialId: v.CredentialID(),
 		Auth:         string(v.AuthKind()),
@@ -256,7 +256,7 @@ func VerifierToProto(v *model.Verifier) *genv1.VerifierMsg {
 }
 
 // VerifierFromProto reconstructs a model.Verifier from its Raft form.
-func VerifierFromProto(p *genv1.VerifierMsg) (*model.Verifier, error) {
+func VerifierFromProto(p *raftv1.VerifierMsg) (*model.Verifier, error) {
 	if p == nil {
 		return nil, nil
 	}
@@ -275,14 +275,14 @@ func VerifierFromProto(p *genv1.VerifierMsg) (*model.Verifier, error) {
 // === Sessions ===
 
 // SessionToProto serialises a model.Session for Raft replication.
-func SessionToProto(s *model.Session) *genv1.SessionMsg {
+func SessionToProto(s *model.Session) *raftv1.SessionMsg {
 	if s == nil {
 		return nil
 	}
 	hash := s.RefreshHash()
 	cp := make([]byte, len(hash))
 	copy(cp, hash)
-	return &genv1.SessionMsg{
+	return &raftv1.SessionMsg{
 		Id:           s.ID(),
 		UserId:       s.UserID(),
 		CredentialId: s.CredentialID(),
@@ -296,7 +296,7 @@ func SessionToProto(s *model.Session) *genv1.SessionMsg {
 }
 
 // SessionFromProto reconstructs a model.Session from its Raft form.
-func SessionFromProto(p *genv1.SessionMsg) (*model.Session, error) {
+func SessionFromProto(p *raftv1.SessionMsg) (*model.Session, error) {
 	if p == nil {
 		return nil, nil
 	}
@@ -320,7 +320,7 @@ func SessionFromProto(p *genv1.SessionMsg) (*model.Session, error) {
 // SpecToProto serialises a model.Spec for Raft replication. KindConfig is
 // converted to google.protobuf.Struct; non-JSON-friendly values inside the
 // map (channels, functions) will fail here loudly.
-func SpecToProto(ts *model.Spec) *genv1.SpecMsg {
+func SpecToProto(ts *model.Spec) *raftv1.SpecMsg {
 	if ts == nil {
 		return nil
 	}
@@ -334,7 +334,7 @@ func SpecToProto(ts *model.Spec) *genv1.SpecMsg {
 	}
 	b := ts.Backoff()
 	kc, _ := structpb.NewStruct(ts.KindConfig())
-	return &genv1.SpecMsg{
+	return &raftv1.SpecMsg{
 		Id:                ts.ID(),
 		Name:              ts.Name(),
 		Slot:              ts.Slot(),
@@ -346,7 +346,7 @@ func SpecToProto(ts *model.Spec) *genv1.SpecMsg {
 		TimeoutMs:         ts.TimeoutMs(),
 		RestartType:       string(ts.RestartType()),
 		IntervalMs:        ts.IntervalMs(),
-		Backoff: &genv1.BackoffMsg{
+		Backoff: &raftv1.BackoffMsg{
 			Jitter:  string(b.Jitter),
 			FirstMs: b.FirstMs,
 			MaxMs:   b.MaxMs,
@@ -361,7 +361,7 @@ func SpecToProto(ts *model.Spec) *genv1.SpecMsg {
 }
 
 // SpecFromProto reconstructs a model.Spec from its Raft representation.
-func SpecFromProto(p *genv1.SpecMsg) (*model.Spec, error) {
+func SpecFromProto(p *raftv1.SpecMsg) (*model.Spec, error) {
 	if p == nil {
 		return nil, nil
 	}
@@ -396,11 +396,11 @@ func SpecFromProto(p *genv1.SpecMsg) (*model.Spec, error) {
 // === Rollouts ===
 
 // RolloutToProto serialises a model.Rollout for Raft replication.
-func RolloutToProto(r *model.Rollout) *genv1.RolloutMsg {
+func RolloutToProto(r *model.Rollout) *raftv1.RolloutMsg {
 	if r == nil {
 		return nil
 	}
-	return &genv1.RolloutMsg{
+	return &raftv1.RolloutMsg{
 		Id:                 r.ID(),
 		SpecId:             r.SpecID(),
 		AgentId:            r.AgentID(),
@@ -423,7 +423,7 @@ func RolloutToProto(r *model.Rollout) *genv1.RolloutMsg {
 // to match the serialised state. Errors from transitions are ignored — they
 // indicate invariant violations the serialised state already represents,
 // which can't be fixed by reporting here.
-func RolloutFromProto(p *genv1.RolloutMsg) (*model.Rollout, error) {
+func RolloutFromProto(p *raftv1.RolloutMsg) (*model.Rollout, error) {
 	if p == nil {
 		return nil, nil
 	}
@@ -454,5 +454,5 @@ func RolloutFromProto(p *genv1.RolloutMsg) (*model.Rollout, error) {
 // === errors ===
 
 // ErrUnknownOp is returned by raft FSM Apply when the oneof variant carried
-// in genv1.Op is not recognised.
+// in raftv1.Op is not recognised.
 var ErrUnknownOp = fmt.Errorf("wire: unknown op variant")

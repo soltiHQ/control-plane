@@ -10,7 +10,7 @@ import (
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	raftv1 "github.com/soltiHQ/control-plane/api/gen/solti/raft/v1"
 	"github.com/soltiHQ/control-plane/domain/enum"
 	"github.com/soltiHQ/control-plane/domain/model"
 	"github.com/soltiHQ/control-plane/internal/event"
@@ -236,7 +236,7 @@ func TestFSM_RestoreEmpty(t *testing.T) {
 
 // TestFSM_RestoreBadMagic — wrong magic in the header is rejected.
 func TestFSM_RestoreBadMagic(t *testing.T) {
-	junk := &genv1.Snapshot{Header: &genv1.SnapshotHeader{Magic: "NOT-SOLTI", Version: 1}}
+	junk := &raftv1.Snapshot{Header: &raftv1.SnapshotHeader{Magic: "NOT-SOLTI", Version: 1}}
 	data, err := proto.Marshal(junk)
 	if err != nil {
 		t.Fatal(err)

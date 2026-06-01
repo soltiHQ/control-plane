@@ -10,6 +10,6 @@ type StreamsConfig struct {
 
 	// SubscriberBuffer is the per-subscriber channel buffer in the
 	// log-fanout hub. Larger = more tolerance for slow readers before a
-	// LaggedProto is emitted. 0 uses the package default (64).
+	// Lagged is emitted. 0 uses the package default (64).
 	SubscriberBuffer int `yaml:"subscriber_buffer" envconfig:"SUBSCRIBER_BUFFER"`
 }

@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	taskv1 "github.com/soltiHQ/control-plane/api/gen/solti/task/v1"
 	"github.com/soltiHQ/control-plane/internal/loghub"
 )
 
-func chunk(line string) *genv1.OutputEventProto {
-	return &genv1.OutputEventProto{
-		Kind: &genv1.OutputEventProto_Chunk{Chunk: &genv1.OutputChunkProto{Line: []byte(line)}},
+func chunk(line string) *taskv1.StreamTaskLogsResponse {
+	return &taskv1.StreamTaskLogsResponse{
+		Kind: &taskv1.StreamTaskLogsResponse_Chunk{Chunk: &taskv1.OutputChunk{Line: []byte(line)}},
 	}
 }
 
@@ -20,9 +20,9 @@ func chunk(line string) *genv1.OutputEventProto {
 // разделять одно backing-подключение.
 func TestSingleAgentConnection(t *testing.T) {
 	var opens int
-	src := make(chan *genv1.OutputEventProto, 4)
+	src := make(chan *taskv1.StreamTaskLogsResponse, 4)
 
-	hub := loghub.New(func(_ context.Context, _, _ string) (<-chan *genv1.OutputEventProto, error) {
+	hub := loghub.New(func(_ context.Context, _, _ string) (<-chan *taskv1.StreamTaskLogsResponse, error) {
 		opens++
 		return src, nil
 	}, loghub.Options{SubscriberBuffer: 4})
@@ -45,7 +45,7 @@ func TestSingleAgentConnection(t *testing.T) {
 
 	src <- chunk("hello")
 
-	for _, ch := range []<-chan *genv1.OutputEventProto{a, b} {
+	for _, ch := range []<-chan *taskv1.StreamTaskLogsResponse{a, b} {
 		select {
 		case ev := <-ch:
 			if string(ev.GetChunk().GetLine()) != "hello" {
@@ -61,12 +61,12 @@ func TestSingleAgentConnection(t *testing.T) {
 // освобождает backing-подключение; следующий Subscribe открывает новое.
 func TestSourceClosesOnLastUnsub(t *testing.T) {
 	var opens int
-	src := make(chan *genv1.OutputEventProto)
+	src := make(chan *taskv1.StreamTaskLogsResponse)
 
-	hub := loghub.New(func(_ context.Context, _, _ string) (<-chan *genv1.OutputEventProto, error) {
+	hub := loghub.New(func(_ context.Context, _, _ string) (<-chan *taskv1.StreamTaskLogsResponse, error) {
 		opens++
 		// каждый Subscribe получает свежий канал, чтобы не реюзать закрытый
-		src = make(chan *genv1.OutputEventProto)
+		src = make(chan *taskv1.StreamTaskLogsResponse)
 		return src, nil
 	}, loghub.Options{})
 
@@ -96,9 +96,9 @@ func TestSourceClosesOnLastUnsub(t *testing.T) {
 func TestSubscribeReopensAfterEOF(t *testing.T) {
 	var opens int
 
-	hub := loghub.New(func(_ context.Context, _, _ string) (<-chan *genv1.OutputEventProto, error) {
+	hub := loghub.New(func(_ context.Context, _, _ string) (<-chan *taskv1.StreamTaskLogsResponse, error) {
 		opens++
-		ch := make(chan *genv1.OutputEventProto)
+		ch := make(chan *taskv1.StreamTaskLogsResponse)
 		close(ch) // EOF сразу
 		return ch, nil
 	}, loghub.Options{})

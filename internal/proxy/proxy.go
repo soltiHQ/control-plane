@@ -8,7 +8,7 @@ package proxy
 import (
 	"context"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	taskv1 "github.com/soltiHQ/control-plane/api/gen/solti/task/v1"
 	proxyv1 "github.com/soltiHQ/control-plane/api/proxy/v1"
 )
 
@@ -25,7 +25,7 @@ type TaskFilter struct {
 // Spec uses the generated proto type so that both HTTP (via protojson) and
 // gRPC transports share a single wire schema (solti.v1.CreateSpec).
 type TaskSubmission struct {
-	Spec *genv1.CreateSpec
+	Spec *taskv1.CreateSpec
 }
 
 // SpecExport describes a task spec as reported by an agent via export.
@@ -68,5 +68,5 @@ type AgentProxy interface {
 	// wrap [ErrStreamTaskLogs]; mid-stream errors are surfaced by closing
 	// the channel — callers should treat early close as either normal end
 	// or transport failure and act accordingly.
-	StreamTaskLogs(ctx context.Context, taskID string) (<-chan *genv1.OutputEventProto, error)
+	StreamTaskLogs(ctx context.Context, taskID string) (<-chan *taskv1.StreamTaskLogsResponse, error)
 }

@@ -14,7 +14,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	taskv1 "github.com/soltiHQ/control-plane/api/gen/solti/task/v1"
 	proxyv1 "github.com/soltiHQ/control-plane/api/proxy/v1"
 )
 
@@ -53,7 +53,7 @@ func (p *httpProxyV1) ListTasks(ctx context.Context, f TaskFilter) (*proxyv1.Tas
 	}
 	u.RawQuery = q.Encode()
 
-	var out genv1.ListTasksResponse
+	var out taskv1.ListTasksResponse
 	if err := doProtoJSONGet(ctx, p.client, u.String(), &out); err != nil {
 		return nil, err
 	}
@@ -81,8 +81,8 @@ func (p *httpProxyV1) SubmitTask(ctx context.Context, sub TaskSubmission) (strin
 	// SubmitTaskResponse carries the TaskId the agent assigned. Without
 	// it CP cannot later DeleteTask / GetTaskStatus for this exact run,
 	// which breaks the update and uninstall flows.
-	var out genv1.SubmitTaskResponse
-	if err := doProtoJSONPostDecoding(ctx, p.client, u.String(), &genv1.SubmitTaskRequest{Spec: sub.Spec}, &out); err != nil {
+	var out taskv1.SubmitTaskResponse
+	if err := doProtoJSONPostDecoding(ctx, p.client, u.String(), &taskv1.SubmitTaskRequest{Spec: sub.Spec}, &out); err != nil {
 		return "", err
 	}
 	taskID := out.GetTaskId()
@@ -98,7 +98,7 @@ func (p *httpProxyV1) GetTask(ctx context.Context, taskID string) (*proxyv1.Task
 		return nil, fmt.Errorf("%w: %v", ErrBadEndpointURL, err)
 	}
 
-	var out genv1.GetTaskStatusResponse
+	var out taskv1.GetTaskStatusResponse
 	if err := doProtoJSONGet(ctx, p.client, u.String(), &out); err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (p *httpProxyV1) ListTaskRuns(ctx context.Context, taskID string) (*proxyv1
 		return nil, fmt.Errorf("%w: %v", ErrBadEndpointURL, err)
 	}
 
-	var out genv1.ListTaskRunsResponse
+	var out taskv1.ListTaskRunsResponse
 	if err := doProtoJSONGet(ctx, p.client, u.String(), &out); err != nil {
 		return nil, err
 	}
@@ -158,9 +158,9 @@ func (p *httpProxyV1) DeleteTask(ctx context.Context, taskID string) error {
 //
 // Agent wire format is a custom flat JSON with a `type` discriminator
 // (see agentLogEvent), not canonical proto-JSON. We translate locally so
-// downstream consumers can rely on a single OutputEventProto shape
+// downstream consumers can rely on a single StreamTaskLogsResponse shape
 // regardless of the source transport.
-func (p *httpProxyV1) StreamTaskLogs(ctx context.Context, taskID string) (<-chan *genv1.OutputEventProto, error) {
+func (p *httpProxyV1) StreamTaskLogs(ctx context.Context, taskID string) (<-chan *taskv1.StreamTaskLogsResponse, error) {
 	u, err := url.Parse(fmt.Sprintf("%s%s/%s/logs", p.endpoint, v1PathTasks, taskID))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrBadEndpointURL, err)
@@ -181,7 +181,7 @@ func (p *httpProxyV1) StreamTaskLogs(ctx context.Context, taskID string) (<-chan
 		return nil, fmt.Errorf("%w: %v", ErrStreamTaskLogs, err)
 	}
 
-	ch := make(chan *genv1.OutputEventProto, 64)
+	ch := make(chan *taskv1.StreamTaskLogsResponse, 64)
 	go func() {
 		defer close(ch)
 		defer resp.Body.Close()
@@ -240,7 +240,7 @@ type agentLogEvent struct {
 // parseAgentLogEvent decodes one agent SSE payload and converts it to the
 // proto shape. Returns nil on unknown or malformed events; callers should
 // skip silently — the stream continues.
-func parseAgentLogEvent(payload string) *genv1.OutputEventProto {
+func parseAgentLogEvent(payload string) *taskv1.StreamTaskLogsResponse {
 	payload = strings.TrimSpace(payload)
 	if payload == "" {
 		return nil
@@ -251,7 +251,7 @@ func parseAgentLogEvent(payload string) *genv1.OutputEventProto {
 	}
 	switch e.Type {
 	case "chunk":
-		return &genv1.OutputEventProto{Kind: &genv1.OutputEventProto_Chunk{Chunk: &genv1.OutputChunkProto{
+		return &taskv1.StreamTaskLogsResponse{Kind: &taskv1.StreamTaskLogsResponse_Chunk{Chunk: &taskv1.OutputChunk{
 			Attempt: e.Attempt,
 			Stream:  agentStreamToProto(e.Stream),
 			Seq:     e.Seq,
@@ -259,32 +259,32 @@ func parseAgentLogEvent(payload string) *genv1.OutputEventProto {
 			Line:    []byte(e.Line),
 		}}}
 	case "runStarted":
-		return &genv1.OutputEventProto{Kind: &genv1.OutputEventProto_RunStarted{RunStarted: &genv1.RunStartedProto{
+		return &taskv1.StreamTaskLogsResponse{Kind: &taskv1.StreamTaskLogsResponse_RunStarted{RunStarted: &taskv1.RunStarted{
 			Attempt:   e.Attempt,
 			StartedAt: e.Started,
 		}}}
 	case "runFinished":
-		return &genv1.OutputEventProto{Kind: &genv1.OutputEventProto_RunFinished{RunFinished: &genv1.RunFinishedProto{
+		return &taskv1.StreamTaskLogsResponse{Kind: &taskv1.StreamTaskLogsResponse_RunFinished{RunFinished: &taskv1.RunFinished{
 			Attempt:    e.Attempt,
 			ExitCode:   e.ExitCode,
 			FinishedAt: e.Finished,
 		}}}
 	case "lagged":
-		return &genv1.OutputEventProto{Kind: &genv1.OutputEventProto_Lagged{Lagged: &genv1.LaggedProto{
+		return &taskv1.StreamTaskLogsResponse{Kind: &taskv1.StreamTaskLogsResponse_Lagged{Lagged: &taskv1.Lagged{
 			Skipped: e.Skipped,
 		}}}
 	}
 	return nil
 }
 
-func agentStreamToProto(s string) genv1.OutputStreamKind {
+func agentStreamToProto(s string) taskv1.OutputStreamKind {
 	switch s {
 	case "stdout":
-		return genv1.OutputStreamKind_OUTPUT_STREAM_KIND_STDOUT
+		return taskv1.OutputStreamKind_OUTPUT_STREAM_KIND_STDOUT
 	case "stderr":
-		return genv1.OutputStreamKind_OUTPUT_STREAM_KIND_STDERR
+		return taskv1.OutputStreamKind_OUTPUT_STREAM_KIND_STDERR
 	}
-	return genv1.OutputStreamKind_OUTPUT_STREAM_KIND_UNSPECIFIED
+	return taskv1.OutputStreamKind_OUTPUT_STREAM_KIND_UNSPECIFIED
 }
 
 // doProtoJSONGet performs a GET and decodes the response as proto-JSON.

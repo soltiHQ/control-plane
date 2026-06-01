@@ -3,7 +3,7 @@ package raft
 import (
 	hraft "github.com/hashicorp/raft"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	raftv1 "github.com/soltiHQ/control-plane/api/gen/solti/raft/v1"
 	"github.com/soltiHQ/control-plane/internal/event"
 )
 
@@ -12,7 +12,7 @@ var _ event.Writer = (*EventWriter)(nil)
 
 // EventWriter replicates hub mutations through Raft. Plugged into
 // [event.Hub] via hub.SetWriter so Notify/Record/DeleteIssues on any
-// replica submit a [genv1.Command] and the FSM fires on every replica via
+// replica submit a [raftv1.Command] and the FSM fires on every replica via
 // ApplyLocal*.
 //
 // Non-leader submissions fall back to local-only execution: Raft rejects
@@ -31,7 +31,7 @@ func NewEventWriter(r *hraft.Raft, hub *event.Hub) *EventWriter {
 }
 
 func (w *EventWriter) Notify(ev string) {
-	op := &genv1.Op{Op: &genv1.Op_EventNotify{EventNotify: ev}}
+	op := &raftv1.Op{Op: &raftv1.Op_EventNotify{EventNotify: ev}}
 	if err := w.submit(op); err != nil {
 		// Submit failed — fall back to local-only emission so the caller's
 		// SSE subscribers at least see it on this replica.
@@ -40,7 +40,7 @@ func (w *EventWriter) Notify(ev string) {
 }
 
 func (w *EventWriter) Record(kind string, p event.Payload) {
-	op := &genv1.Op{Op: &genv1.Op_EventRecord{EventRecord: &genv1.EventRecordMsg{
+	op := &raftv1.Op{Op: &raftv1.Op_EventRecord{EventRecord: &raftv1.EventRecordMsg{
 		Kind:    kind,
 		Payload: payloadToProto(p),
 	}}}
@@ -50,7 +50,7 @@ func (w *EventWriter) Record(kind string, p event.Payload) {
 }
 
 func (w *EventWriter) DeleteIssues(kind, id string) int {
-	op := &genv1.Op{Op: &genv1.Op_EventDeleteIssues{EventDeleteIssues: &genv1.EventDeleteIssuesMsg{
+	op := &raftv1.Op{Op: &raftv1.Op_EventDeleteIssues{EventDeleteIssues: &raftv1.EventDeleteIssuesMsg{
 		Kind: kind,
 		Id:   id,
 	}}}
@@ -63,8 +63,8 @@ func (w *EventWriter) DeleteIssues(kind, id string) int {
 
 // submit encodes and applies a single-op command. Returns error if Raft
 // rejects the submission (non-leader, timeout, quorum loss).
-func (w *EventWriter) submit(op *genv1.Op) error {
-	data, err := encodeCommand([]*genv1.Op{op})
+func (w *EventWriter) submit(op *raftv1.Op) error {
+	data, err := encodeCommand([]*raftv1.Op{op})
 	if err != nil {
 		return err
 	}
@@ -72,8 +72,8 @@ func (w *EventWriter) submit(op *genv1.Op) error {
 }
 
 // payloadToProto converts the in-memory event.Payload to its replicated form.
-func payloadToProto(p event.Payload) *genv1.EventPayloadMsg {
-	return &genv1.EventPayloadMsg{
+func payloadToProto(p event.Payload) *raftv1.EventPayloadMsg {
+	return &raftv1.EventPayloadMsg{
 		Id:     p.ID,
 		By:     p.By,
 		Name:   p.Name,
@@ -82,7 +82,7 @@ func payloadToProto(p event.Payload) *genv1.EventPayloadMsg {
 }
 
 // payloadFromProto inverts payloadToProto for the FSM Apply path.
-func payloadFromProto(p *genv1.EventPayloadMsg) event.Payload {
+func payloadFromProto(p *raftv1.EventPayloadMsg) event.Payload {
 	if p == nil {
 		return event.Payload{}
 	}

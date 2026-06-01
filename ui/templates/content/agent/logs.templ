@@ -8,7 +8,7 @@ import (
 // the user expands it, an inline script opens an EventSource against the
 // CP-side bridge endpoint and appends every line to the pre block.
 //
-// Per-task `OutputEventProto` envelope is parsed client-side: chunks
+// Per-task `StreamTaskLogsResponse` envelope is parsed client-side: chunks
 // carry base64-encoded UTF-8 lines (proto `bytes` field); run boundaries
 // surface as synthetic markers in the log; lagged events show a banner.
 templ TaskLogs(agentID, taskID string) {

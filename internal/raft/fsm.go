@@ -9,7 +9,7 @@ import (
 	hraft "github.com/hashicorp/raft"
 	"google.golang.org/protobuf/proto"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	raftv1 "github.com/soltiHQ/control-plane/api/gen/solti/raft/v1"
 	"github.com/soltiHQ/control-plane/domain/wire"
 	"github.com/soltiHQ/control-plane/internal/event"
 	"github.com/soltiHQ/control-plane/internal/storage"
@@ -49,8 +49,8 @@ func (f *FSM) Apply(l *hraft.Log) any {
 	// Split ops: store ops go through WithTx, event ops are applied
 	// directly on the hub after the tx commits successfully.
 	var (
-		storeOps []*genv1.Op
-		eventOps []*genv1.Op
+		storeOps []*raftv1.Op
+		eventOps []*raftv1.Op
 	)
 	for _, op := range cmd.GetOps() {
 		if isEventOp(op) {
@@ -82,26 +82,26 @@ func (f *FSM) Apply(l *hraft.Log) any {
 
 // isEventOp reports whether op carries an event-hub mutation rather than
 // a store mutation.
-func isEventOp(op *genv1.Op) bool {
+func isEventOp(op *raftv1.Op) bool {
 	switch op.GetOp().(type) {
-	case *genv1.Op_EventNotify, *genv1.Op_EventRecord, *genv1.Op_EventDeleteIssues:
+	case *raftv1.Op_EventNotify, *raftv1.Op_EventRecord, *raftv1.Op_EventDeleteIssues:
 		return true
 	}
 	return false
 }
 
 // applyEventOp dispatches a hub mutation to the local replica.
-func applyEventOp(hub *event.Hub, op *genv1.Op) {
+func applyEventOp(hub *event.Hub, op *raftv1.Op) {
 	if hub == nil {
 		return
 	}
 	switch v := op.GetOp().(type) {
-	case *genv1.Op_EventNotify:
+	case *raftv1.Op_EventNotify:
 		hub.ApplyLocalNotify(v.EventNotify)
-	case *genv1.Op_EventRecord:
+	case *raftv1.Op_EventRecord:
 		msg := v.EventRecord
 		hub.ApplyLocalRecord(msg.GetKind(), payloadFromProto(msg.GetPayload()))
-	case *genv1.Op_EventDeleteIssues:
+	case *raftv1.Op_EventDeleteIssues:
 		msg := v.EventDeleteIssues
 		hub.ApplyLocalDeleteIssues(msg.GetKind(), msg.GetId())
 	}
@@ -110,90 +110,90 @@ func applyEventOp(hub *event.Hub, op *genv1.Op) {
 // applyStoreOp dispatches a store mutation to tx. The variant of op
 // drives the type-switch; each case converts the proto sub-message via
 // wire.*FromProto and calls the corresponding tx method.
-func applyStoreOp(ctx context.Context, tx storage.Storage, op *genv1.Op) error {
+func applyStoreOp(ctx context.Context, tx storage.Storage, op *raftv1.Op) error {
 	switch v := op.GetOp().(type) {
-	case *genv1.Op_AgentUpsert:
+	case *raftv1.Op_AgentUpsert:
 		a, err := wire.AgentFromProto(v.AgentUpsert)
 		if err != nil {
 			return err
 		}
 		return tx.UpsertAgent(ctx, a)
-	case *genv1.Op_AgentDelete:
+	case *raftv1.Op_AgentDelete:
 		return tx.DeleteAgent(ctx, v.AgentDelete)
 
-	case *genv1.Op_UserUpsert:
+	case *raftv1.Op_UserUpsert:
 		u, err := wire.UserFromProto(v.UserUpsert)
 		if err != nil {
 			return err
 		}
 		return tx.UpsertUser(ctx, u)
-	case *genv1.Op_UserDelete:
+	case *raftv1.Op_UserDelete:
 		return tx.DeleteUser(ctx, v.UserDelete)
 
-	case *genv1.Op_RoleUpsert:
+	case *raftv1.Op_RoleUpsert:
 		r, err := wire.RoleFromProto(v.RoleUpsert)
 		if err != nil {
 			return err
 		}
 		return tx.UpsertRole(ctx, r)
-	case *genv1.Op_RoleDelete:
+	case *raftv1.Op_RoleDelete:
 		return tx.DeleteRole(ctx, v.RoleDelete)
 
-	case *genv1.Op_CredentialUpsert:
+	case *raftv1.Op_CredentialUpsert:
 		c, err := wire.CredentialFromProto(v.CredentialUpsert)
 		if err != nil {
 			return err
 		}
 		return tx.UpsertCredential(ctx, c)
-	case *genv1.Op_CredentialDelete:
+	case *raftv1.Op_CredentialDelete:
 		return tx.DeleteCredential(ctx, v.CredentialDelete)
 
-	case *genv1.Op_VerifierUpsert:
+	case *raftv1.Op_VerifierUpsert:
 		ver, err := wire.VerifierFromProto(v.VerifierUpsert)
 		if err != nil {
 			return err
 		}
 		return tx.UpsertVerifier(ctx, ver)
-	case *genv1.Op_VerifierDelete:
+	case *raftv1.Op_VerifierDelete:
 		return tx.DeleteVerifier(ctx, v.VerifierDelete)
-	case *genv1.Op_VerifierDeleteByCred:
+	case *raftv1.Op_VerifierDeleteByCred:
 		return tx.DeleteVerifierByCredential(ctx, v.VerifierDeleteByCred)
 
-	case *genv1.Op_SessionCreate:
+	case *raftv1.Op_SessionCreate:
 		s, err := wire.SessionFromProto(v.SessionCreate)
 		if err != nil {
 			return err
 		}
 		return tx.CreateSession(ctx, s)
-	case *genv1.Op_SessionDelete:
+	case *raftv1.Op_SessionDelete:
 		return tx.DeleteSession(ctx, v.SessionDelete)
-	case *genv1.Op_SessionDeleteByUser:
+	case *raftv1.Op_SessionDeleteByUser:
 		return tx.DeleteSessionsByUser(ctx, v.SessionDeleteByUser)
-	case *genv1.Op_SessionRotateRefresh:
+	case *raftv1.Op_SessionRotateRefresh:
 		m := v.SessionRotateRefresh
 		return tx.RotateRefresh(ctx, m.GetId(), m.GetRefreshHash(), time.Unix(0, m.GetExpiresAtNs()))
-	case *genv1.Op_SessionRevoke:
+	case *raftv1.Op_SessionRevoke:
 		m := v.SessionRevoke
 		return tx.RevokeSession(ctx, m.GetId(), time.Unix(0, m.GetRevokedAtNs()))
 
-	case *genv1.Op_SpecUpsert:
+	case *raftv1.Op_SpecUpsert:
 		ts, err := wire.SpecFromProto(v.SpecUpsert)
 		if err != nil {
 			return err
 		}
 		return tx.UpsertSpec(ctx, ts)
-	case *genv1.Op_SpecDelete:
+	case *raftv1.Op_SpecDelete:
 		return tx.DeleteSpec(ctx, v.SpecDelete)
 
-	case *genv1.Op_RolloutUpsert:
+	case *raftv1.Op_RolloutUpsert:
 		r, err := wire.RolloutFromProto(v.RolloutUpsert)
 		if err != nil {
 			return err
 		}
 		return tx.UpsertRollout(ctx, r)
-	case *genv1.Op_RolloutDelete:
+	case *raftv1.Op_RolloutDelete:
 		return tx.DeleteRollout(ctx, v.RolloutDelete)
-	case *genv1.Op_RolloutDeleteBySpec:
+	case *raftv1.Op_RolloutDeleteBySpec:
 		return tx.DeleteRolloutsBySpec(ctx, v.RolloutDeleteBySpec)
 
 	default:
@@ -234,7 +234,7 @@ func (f *FSM) Restore(r io.ReadCloser) error {
 	if err != nil {
 		return fmt.Errorf("raft restore: read: %w", err)
 	}
-	var snap genv1.Snapshot
+	var snap raftv1.Snapshot
 	if err := proto.Unmarshal(data, &snap); err != nil {
 		return fmt.Errorf("raft restore: unmarshal: %w", err)
 	}

@@ -12,7 +12,7 @@ import (
 
 	"github.com/soltiHQ/control-plane/internal/transport/grpc/status"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	discoverv1 "github.com/soltiHQ/control-plane/api/gen/solti/discover/v1"
 	"github.com/soltiHQ/control-plane/domain/enum"
 	"github.com/soltiHQ/control-plane/domain/model"
 	"github.com/soltiHQ/control-plane/internal/event"
@@ -83,7 +83,7 @@ func (h *HTTPDiscovery) Sync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var in genv1.SyncRequest
+	var in discoverv1.SyncRequest
 	if err := discoverySyncUnmarshal.Unmarshal(body, &in); err != nil {
 		response.BadRequest(w, r, mode)
 		return
@@ -129,7 +129,7 @@ func (h *HTTPDiscovery) Sync(w http.ResponseWriter, r *http.Request) {
 	}
 	h.eventHub.Notify(htmx.AgentUpdate)
 
-	resp := &genv1.SyncResponse{Success: true}
+	resp := &discoverv1.SyncResponse{Success: true}
 	respBytes, err := discoverySyncMarshal.Marshal(resp)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("marshal SyncResponse")
@@ -139,9 +139,9 @@ func (h *HTTPDiscovery) Sync(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, r, mode, &responder.View{RawJSON: respBytes})
 }
 
-// GRPCDiscovery implements genv1.DiscoverServiceServer.
+// GRPCDiscovery implements discoverv1.DiscoverServiceServer.
 type GRPCDiscovery struct {
-	genv1.UnimplementedDiscoverServiceServer
+	discoverv1.UnimplementedDiscoverServiceServer
 	logger   zerolog.Logger
 	agentSVC *agent.Service
 	hub      *event.Hub
@@ -162,8 +162,8 @@ func NewGRPCDiscovery(logger zerolog.Logger, agentSVC *agent.Service, hub *event
 	}
 }
 
-// Sync implements genv1.DiscoverServiceServer.
-func (g *GRPCDiscovery) Sync(ctx context.Context, req *genv1.SyncRequest) (*genv1.SyncResponse, error) {
+// Sync implements discoverv1.DiscoverServiceServer.
+func (g *GRPCDiscovery) Sync(ctx context.Context, req *discoverv1.SyncRequest) (*discoverv1.SyncResponse, error) {
 	a, err := model.NewAgentFrom(model.AgentParams{
 		ID:                 req.GetId(),
 		Name:               req.GetName(),
@@ -201,5 +201,5 @@ func (g *GRPCDiscovery) Sync(ctx context.Context, req *genv1.SyncRequest) (*genv
 		}
 	}
 	g.hub.Notify(htmx.AgentUpdate)
-	return &genv1.SyncResponse{Success: true}, nil
+	return &discoverv1.SyncResponse{Success: true}, nil
 }

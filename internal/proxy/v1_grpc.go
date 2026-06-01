@@ -5,20 +5,20 @@ import (
 	"fmt"
 	"strings"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	taskv1 "github.com/soltiHQ/control-plane/api/gen/solti/task/v1"
 	proxyv1 "github.com/soltiHQ/control-plane/api/proxy/v1"
 	"google.golang.org/grpc"
 )
 
-// grpcProxyV1 implements AgentProxy over gRPC (solti.v1.SoltiApi).
+// grpcProxyV1 implements AgentProxy over gRPC (solti.task.v1.TaskService).
 type grpcProxyV1 struct {
 	conn *grpc.ClientConn
 }
 
 func (p *grpcProxyV1) ListTasks(ctx context.Context, f TaskFilter) (*proxyv1.TaskListResponse, error) {
-	client := genv1.NewSoltiApiClient(p.conn)
+	client := taskv1.NewTaskServiceClient(p.conn)
 
-	req := &genv1.ListTasksRequest{
+	req := &taskv1.ListTasksRequest{
 		Limit:  clampUint32(f.Limit),
 		Offset: clampUint32(f.Offset),
 	}
@@ -51,9 +51,9 @@ func (p *grpcProxyV1) SubmitTask(ctx context.Context, sub TaskSubmission) (strin
 	if sub.Spec == nil {
 		return "", fmt.Errorf("%w: nil spec", ErrSubmitTask)
 	}
-	client := genv1.NewSoltiApiClient(p.conn)
+	client := taskv1.NewTaskServiceClient(p.conn)
 
-	resp, err := client.SubmitTask(ctx, &genv1.SubmitTaskRequest{Spec: sub.Spec})
+	resp, err := client.SubmitTask(ctx, &taskv1.SubmitTaskRequest{Spec: sub.Spec})
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrSubmitTask, err)
 	}
@@ -69,9 +69,9 @@ func (p *grpcProxyV1) SubmitTask(ctx context.Context, sub TaskSubmission) (strin
 }
 
 func (p *grpcProxyV1) GetTask(ctx context.Context, taskID string) (*proxyv1.TaskStatusResponse, error) {
-	client := genv1.NewSoltiApiClient(p.conn)
+	client := taskv1.NewTaskServiceClient(p.conn)
 
-	resp, err := client.GetTaskStatus(ctx, &genv1.GetTaskStatusRequest{TaskId: taskID})
+	resp, err := client.GetTaskStatus(ctx, &taskv1.GetTaskStatusRequest{TaskId: taskID})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrGetTask, err)
 	}
@@ -86,9 +86,9 @@ func (p *grpcProxyV1) GetTask(ctx context.Context, taskID string) (*proxyv1.Task
 }
 
 func (p *grpcProxyV1) ListTaskRuns(ctx context.Context, taskID string) (*proxyv1.TaskRunListResponse, error) {
-	client := genv1.NewSoltiApiClient(p.conn)
+	client := taskv1.NewTaskServiceClient(p.conn)
 
-	resp, err := client.ListTaskRuns(ctx, &genv1.ListTaskRunsRequest{TaskId: taskID})
+	resp, err := client.ListTaskRuns(ctx, &taskv1.ListTaskRunsRequest{TaskId: taskID})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrListTaskRuns, err)
 	}
@@ -116,9 +116,9 @@ func (p *grpcProxyV1) ListTaskRuns(ctx context.Context, taskID string) (*proxyv1
 }
 
 func (p *grpcProxyV1) DeleteTask(ctx context.Context, taskID string) error {
-	client := genv1.NewSoltiApiClient(p.conn)
+	client := taskv1.NewTaskServiceClient(p.conn)
 
-	_, err := client.DeleteTask(ctx, &genv1.DeleteTaskRequest{TaskId: taskID})
+	_, err := client.DeleteTask(ctx, &taskv1.DeleteTaskRequest{TaskId: taskID})
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrDeleteTask, err)
 	}
@@ -127,16 +127,16 @@ func (p *grpcProxyV1) DeleteTask(ctx context.Context, taskID string) error {
 }
 
 // StreamTaskLogs opens the agent's StreamTaskLogs server-stream, forwards
-// each OutputEventProto into a channel, and closes it on EOF, ctx
+// each StreamTaskLogsResponse into a channel, and closes it on EOF, ctx
 // cancellation, or transport error. Channel buffer is 64 — typical chunk
 // cadence (~10 lines/sec) is well below; bursts are absorbed.
-func (p *grpcProxyV1) StreamTaskLogs(ctx context.Context, taskID string) (<-chan *genv1.OutputEventProto, error) {
-	client := genv1.NewSoltiApiClient(p.conn)
-	stream, err := client.StreamTaskLogs(ctx, &genv1.StreamTaskLogsRequest{TaskId: taskID})
+func (p *grpcProxyV1) StreamTaskLogs(ctx context.Context, taskID string) (<-chan *taskv1.StreamTaskLogsResponse, error) {
+	client := taskv1.NewTaskServiceClient(p.conn)
+	stream, err := client.StreamTaskLogs(ctx, &taskv1.StreamTaskLogsRequest{TaskId: taskID})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrStreamTaskLogs, err)
 	}
-	ch := make(chan *genv1.OutputEventProto, 64)
+	ch := make(chan *taskv1.StreamTaskLogsResponse, 64)
 	go func() {
 		defer close(ch)
 		for {
@@ -156,7 +156,7 @@ func (p *grpcProxyV1) StreamTaskLogs(ctx context.Context, taskID string) (<-chan
 
 // taskDataToProxy converts a proto TaskData (nested metadata + spec + status)
 // into the flat proxy-level Task type consumed by podium's own REST/UI.
-func taskDataToProxy(t *genv1.TaskData) proxyv1.Task {
+func taskDataToProxy(t *taskv1.TaskData) proxyv1.Task {
 	meta := t.GetMetadata()
 	st := t.GetStatus()
 	spec := t.GetSpec()
@@ -180,7 +180,7 @@ func taskDataToProxy(t *genv1.TaskData) proxyv1.Task {
 // v1TaskStatusString converts a v1 proto TaskStatus enum to a lowercase string.
 //
 //	TASK_STATUS_RUNNING → "running"
-func v1TaskStatusString(s genv1.TaskStatus) string {
+func v1TaskStatusString(s taskv1.TaskStatus) string {
 	name := s.String()
 	name = strings.TrimPrefix(name, "TASK_STATUS_")
 	return strings.ToLower(name)
@@ -189,13 +189,13 @@ func v1TaskStatusString(s genv1.TaskStatus) string {
 // parseV1TaskStatus converts a lowercase status string to the v1 proto enum.
 //
 //	"running" → TASK_STATUS_RUNNING
-func parseV1TaskStatus(s string) (genv1.TaskStatus, bool) {
+func parseV1TaskStatus(s string) (taskv1.TaskStatus, bool) {
 	key := "TASK_STATUS_" + strings.ToUpper(s)
-	v, ok := genv1.TaskStatus_value[key]
+	v, ok := taskv1.TaskStatus_value[key]
 	if !ok {
-		return genv1.TaskStatus_TASK_STATUS_UNSPECIFIED, false
+		return taskv1.TaskStatus_TASK_STATUS_UNSPECIFIED, false
 	}
-	return genv1.TaskStatus(v), true
+	return taskv1.TaskStatus(v), true
 }
 
 func clampUint32(v int) uint32 {

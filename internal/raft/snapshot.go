@@ -6,7 +6,7 @@ import (
 	hraft "github.com/hashicorp/raft"
 	"google.golang.org/protobuf/proto"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	raftv1 "github.com/soltiHQ/control-plane/api/gen/solti/raft/v1"
 	"github.com/soltiHQ/control-plane/domain/wire"
 	"github.com/soltiHQ/control-plane/internal/storage/inmemory"
 )
@@ -21,7 +21,7 @@ const (
 // It captures a decoupled copy of the store contents at Snapshot() time
 // so that Persist() can run concurrently with later Apply calls without
 // observing partial mutations. Persist serialises the captured payload
-// as a single proto blob (genv1.Snapshot) into the SnapshotSink.
+// as a single proto blob (raftv1.Snapshot) into the SnapshotSink.
 type fsmSnapshot struct {
 	content inmemory.SnapshotContent
 }
@@ -30,19 +30,19 @@ type fsmSnapshot struct {
 // On any encode/write error Persist cancels the sink (telling Raft to
 // discard the partial file) and returns the wrapped error.
 func (s *fsmSnapshot) Persist(sink hraft.SnapshotSink) error {
-	msg := &genv1.Snapshot{
-		Header: &genv1.SnapshotHeader{
+	msg := &raftv1.Snapshot{
+		Header: &raftv1.SnapshotHeader{
 			Magic:   snapshotMagic,
 			Version: snapshotVersion,
 		},
-		Agents:      make([]*genv1.AgentMsg, 0, len(s.content.Agents)),
-		Users:       make([]*genv1.UserMsg, 0, len(s.content.Users)),
-		Roles:       make([]*genv1.RoleMsg, 0, len(s.content.Roles)),
-		Credentials: make([]*genv1.CredentialMsg, 0, len(s.content.Credentials)),
-		Verifiers:   make([]*genv1.VerifierMsg, 0, len(s.content.Verifiers)),
-		Sessions:    make([]*genv1.SessionMsg, 0, len(s.content.Sessions)),
-		Specs:       make([]*genv1.SpecMsg, 0, len(s.content.Specs)),
-		Rollouts:    make([]*genv1.RolloutMsg, 0, len(s.content.Rollouts)),
+		Agents:      make([]*raftv1.AgentMsg, 0, len(s.content.Agents)),
+		Users:       make([]*raftv1.UserMsg, 0, len(s.content.Users)),
+		Roles:       make([]*raftv1.RoleMsg, 0, len(s.content.Roles)),
+		Credentials: make([]*raftv1.CredentialMsg, 0, len(s.content.Credentials)),
+		Verifiers:   make([]*raftv1.VerifierMsg, 0, len(s.content.Verifiers)),
+		Sessions:    make([]*raftv1.SessionMsg, 0, len(s.content.Sessions)),
+		Specs:       make([]*raftv1.SpecMsg, 0, len(s.content.Specs)),
+		Rollouts:    make([]*raftv1.RolloutMsg, 0, len(s.content.Rollouts)),
 	}
 	for _, a := range s.content.Agents {
 		msg.Agents = append(msg.Agents, wire.AgentToProto(a))

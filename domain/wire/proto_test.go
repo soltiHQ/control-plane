@@ -7,7 +7,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	genv1 "github.com/soltiHQ/control-plane/api/gen/v1"
+	raftv1 "github.com/soltiHQ/control-plane/api/gen/solti/raft/v1"
 	"github.com/soltiHQ/control-plane/domain/enum"
 	"github.com/soltiHQ/control-plane/domain/model"
 	"github.com/soltiHQ/control-plane/domain/wire"
@@ -39,7 +39,7 @@ func TestAgent_ProtoRoundtrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var msg genv1.AgentMsg
+	var msg raftv1.AgentMsg
 	if err := proto.Unmarshal(data, &msg); err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestSpec_KindConfigNestedRoundtrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	var msg genv1.SpecMsg
+	var msg raftv1.SpecMsg
 	if err := proto.Unmarshal(data, &msg); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
@@ -177,18 +177,18 @@ func TestRollout_ProtoRoundtrip(t *testing.T) {
 // without losing op semantics. Belt-and-braces check on the oneof wiring.
 func TestCommand_ProtoRoundtrip(t *testing.T) {
 	a, _ := model.NewAgent("a1", "agent", "http://a")
-	cmd := &genv1.Command{
-		Ops: []*genv1.Op{
-			{Op: &genv1.Op_AgentUpsert{AgentUpsert: wire.AgentToProto(a)}},
-			{Op: &genv1.Op_AgentDelete{AgentDelete: "a2"}},
-			{Op: &genv1.Op_EventNotify{EventNotify: "agent_update"}},
+	cmd := &raftv1.Command{
+		Ops: []*raftv1.Op{
+			{Op: &raftv1.Op_AgentUpsert{AgentUpsert: wire.AgentToProto(a)}},
+			{Op: &raftv1.Op_AgentDelete{AgentDelete: "a2"}},
+			{Op: &raftv1.Op_EventNotify{EventNotify: "agent_update"}},
 		},
 	}
 	data, err := proto.Marshal(cmd)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var back genv1.Command
+	var back raftv1.Command
 	if err := proto.Unmarshal(data, &back); err != nil {
 		t.Fatal(err)
 	}

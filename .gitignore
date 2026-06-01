@@ -18,7 +18,9 @@ bin/
 ui/static/js/alpine.min.js
 ui/static/js/htmx.min.js
 
-# proto
+# proto — vendored from soltiHQ/proto (api/proto) and generated (api/gen);
+# both refreshed via `task gen` (proto/vendor + buf generate).
+api/proto/
 api/gen/
 
 # templ
