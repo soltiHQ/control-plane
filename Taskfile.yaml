@@ -28,9 +28,21 @@ tasks:
           URL: "https://unpkg.com/htmx.org@{{.htmx_version}}/dist/htmx.min.js"
           TO: "ui/static/js/htmx.min.js"
 
+  proto/vendor:
+    desc: Re-vendor .proto from soltiHQ/proto into api/proto.
+    silent: true
+    cmds:
+      - task: helpers:proto/vendor
+        vars:
+          MAPPINGS: |
+            solti/task api/proto/solti/task
+            solti/discover api/proto/solti/discover
+            solti/raft api/proto/solti/raft
+
   gen:
     desc: Generate code.
     cmds:
+      - task: proto/vendor
       - task: golang:proto
       - task: golang:templ
       - task: golang:tailwindcss

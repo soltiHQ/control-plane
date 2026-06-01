@@ -1,4 +1,12 @@
 version: v2
+# The .proto files carry no go_package (the schema repo is consumer-neutral).
+# Managed mode injects it: prefix + proto path => one Go package per context,
+# e.g. solti/task/v1 -> github.com/soltiHQ/control-plane/api/gen/solti/task/v1.
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/soltiHQ/control-plane/api/gen
 plugins:
   - remote: buf.build/protocolbuffers/go
     out: api/gen
