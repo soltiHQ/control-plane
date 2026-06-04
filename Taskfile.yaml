@@ -1,22 +1,36 @@
 version: '3'
 
 vars:
-  name: "podium"
   alpinejs_version: "3.13.5"
   htmx_version: "1.9.12"
+  name: "podium"
 
 includes:
   golang:
     taskfile: https://raw.githubusercontent.com/soltiHQ/actions/main/taskfiles/go/Taskfile.yml
     vars:
       image_patch: "-1"
-
   helpers:
     taskfile: https://raw.githubusercontent.com/soltiHQ/actions/main/taskfiles/helpers/Taskfile.yml
 
 tasks:
-  deps:
+  _proto/vendor:
+    desc: Vendor .proto from soltiHQ/proto.
+    internal: true
+    silent: true
+    cmds:
+      - task: helpers:proto/vendor
+        vars:
+          proto_ref: "v0.0.1"
+          MAPPINGS: |
+            solti/task api/proto/solti/task
+            solti/discover api/proto/solti/discover
+            solti/raft api/proto/solti/raft
+
+  _deps:
     desc: Install dependencies.
+    internal: true
+    silent: true
     cmds:
       - task: helpers:download/file
         vars:
@@ -27,28 +41,21 @@ tasks:
           URL: "https://unpkg.com/htmx.org@{{.htmx_version}}/dist/htmx.min.js"
           TO: "ui/static/js/htmx.min.js"
 
-  proto/vendor:
-    desc: Re-vendor .proto from soltiHQ/proto into api/proto (download only).
-    silent: true
+  prepare:
+    desc: Prepare sources.
     cmds:
-      - task: helpers:proto/vendor
-        vars:
-          proto_ref: "v0.0.1" # bump on each proto release
-          MAPPINGS: |
-            solti/task api/proto/solti/task
-            solti/discover api/proto/solti/discover
-            solti/raft api/proto/solti/raft
+      - task: _proto/vendor
+      - task: _deps
 
-  gen:
-    desc: Generate code (vendor proto, then buf/templ/tailwind).
-    cmds:
-      - task: proto/vendor
       - task: golang:proto
       - task: golang:templ
       - task: golang:tailwindcss
         vars:
           INPUT: "ui/static/css/app.css"
           OUTPUT: "ui/static/css/tailwindcss.css"
+
+      - task: golang:tidy
+      - task: golang:vendor
 
   ci/fumpt:
     desc: Run gofumpt.
@@ -71,14 +78,12 @@ tasks:
       - task: golang:govulncheck
 
   ci/vendor:
-    desc: Prepare project and run 'go mod vendor'.
+    desc: Prepare sources.
     cmds:
-      - task: deps
-      - task: gen
-      - task: golang:vendor
+      - task: prepare
 
   ci/build:
-    desc: Build podium binary. Pass GOOS/GOARCH to cross-compile.
+    desc: Build binary.
     vars:
       GOOS:   '{{.GOOS | default "linux"}}'
       GOARCH: '{{.GOARCH | default "amd64"}}'
