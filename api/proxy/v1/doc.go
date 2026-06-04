@@ -4,4 +4,6 @@
 // (generated under api/gen/solti/task/v1).
 //
 // The proxy converts those into the structs here, so the UI does not depend on the proto schema.
+//
+// These types are also the return contract of proxy.AgentProxy.
 package proxyv1
