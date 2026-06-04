@@ -6,7 +6,6 @@ vars:
   htmx_version: "1.9.12"
 
 includes:
-
   golang:
     taskfile: https://raw.githubusercontent.com/soltiHQ/actions/main/taskfiles/go/Taskfile.yml
     vars:
@@ -29,19 +28,19 @@ tasks:
           TO: "ui/static/js/htmx.min.js"
 
   proto/vendor:
-    desc: Re-vendor .proto from soltiHQ/proto into api/proto.
+    desc: Re-vendor .proto from soltiHQ/proto into api/proto (download only).
     silent: true
     cmds:
       - task: helpers:proto/vendor
         vars:
+          proto_ref: "v0.0.1" # bump on each proto release
           MAPPINGS: |
             solti/task api/proto/solti/task
             solti/discover api/proto/solti/discover
             solti/raft api/proto/solti/raft
-      - task: golang:proto
 
   gen:
-    desc: Generate code.
+    desc: Generate code (vendor proto, then buf/templ/tailwind).
     cmds:
       - task: proto/vendor
       - task: golang:proto

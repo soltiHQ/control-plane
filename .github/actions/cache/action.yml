@@ -1,0 +1,25 @@
+name: Cache
+description: >-
+  Restore (and save on miss) the podium build + codegen cache.
+  Single source of truth for the cache paths and key — keep it here, not in workflows.
+
+outputs:
+  cache-hit:
+    description: "'true' if an exact cache key match was found."
+    value: ${{ steps.cache.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - id: cache
+      uses: actions/cache@v5
+      with:
+        path: |
+          .cache
+          vendor
+          api/gen
+          ui/static
+          ui/templates
+        # Invalidate when any generation input changes: deps, Taskfile (proto_ref +
+        # tool versions), buf config, and the templ/css sources.
+        key: podium-${{ hashFiles('go.mod', 'go.sum', 'Taskfile.yaml', 'buf.yaml', 'buf.gen.yaml', 'tailwind.config.cjs', 'ui/static/css/app.css', 'ui/**/*.templ') }}

@@ -9,32 +9,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get Cache
-        id: cache_get
-        uses: soltiHQ/actions/cache-get@main
-        with:
-          paths: |
-            .cache
-            vendor
-            api/gen
-            ui/static
-            ui/templates
-          key: podium-${{ hashFiles('go.mod', 'go.sum', 'Taskfile.yaml') }}
+      - name: Cache
+        id: cache
+        uses: ./.github/actions/cache
 
       - name: Run vendor
-        if: steps.cache_get.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true'
         uses: soltiHQ/actions/taskfile@main
         with:
           command: ci/vendor
-
-      - name: Put Cache
-        if: steps.cache_get.outputs.cache-hit != 'true'
-        uses: soltiHQ/actions/cache-put@main
-        with:
-          paths: |
-            .cache
-            vendor
-            api/gen
-            ui/static
-            ui/templates
-          key: podium-${{ hashFiles('go.mod', 'go.sum', 'Taskfile.yaml') }}

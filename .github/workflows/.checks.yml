@@ -8,130 +8,34 @@ jobs:
     runs-on: ${{ vars.RUNS_ON }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Get Cache
-        id: cache_get
-        uses: soltiHQ/actions/cache-get@main
-        with:
-          paths: |
-            .cache
-            vendor
-            api/gen
-            ui/static
-            ui/templates
-          key: podium-${{ hashFiles('go.mod', 'go.sum', 'Taskfile.yaml') }}
-
+      - uses: ./.github/actions/cache
       - name: Run ci/fumpt
         uses: soltiHQ/actions/taskfile@main
         with: { command: ci/fumpt }
-
-      - name: Put Cache
-        if: steps.cache_get.outputs.cache-hit != 'true'
-        uses: soltiHQ/actions/cache-put@main
-        with:
-          paths: |
-            .cache
-            vendor
-            api/gen
-            ui/static
-            ui/templates
-          key: podium-${{ hashFiles('go.mod', 'go.sum', 'Taskfile.yaml') }}
 
   lint:
     runs-on: ${{ vars.RUNS_ON }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Get Cache
-        id: cache_get
-        uses: soltiHQ/actions/cache-get@main
-        with:
-          paths: |
-            .cache
-            vendor
-            api/gen
-            ui/static
-            ui/templates
-          key: podium-${{ hashFiles('go.mod', 'go.sum', 'Taskfile.yaml') }}
-
+      - uses: ./.github/actions/cache
       - name: Run ci/lint
         uses: soltiHQ/actions/taskfile@main
         with: { command: ci/lint }
-
-      - name: Put Cache
-        if: steps.cache_get.outputs.cache-hit != 'true'
-        uses: soltiHQ/actions/cache-put@main
-        with:
-          paths: |
-            .cache
-            vendor
-            api/gen
-            ui/static
-            ui/templates
-          key: podium-${{ hashFiles('go.mod', 'go.sum', 'Taskfile.yaml') }}
 
   test:
     runs-on: ${{ vars.RUNS_ON }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Get Cache
-        id: cache_get
-        uses: soltiHQ/actions/cache-get@main
-        with:
-          paths: |
-            .cache
-            vendor
-            api/gen
-            ui/static
-            ui/templates
-          key: podium-${{ hashFiles('go.mod', 'go.sum', 'Taskfile.yaml') }}
-
+      - uses: ./.github/actions/cache
       - name: Run ci/test
         uses: soltiHQ/actions/taskfile@main
         with: { command: ci/test }
-
-      - name: Put Cache
-        if: steps.cache_get.outputs.cache-hit != 'true'
-        uses: soltiHQ/actions/cache-put@main
-        with:
-          paths: |
-            .cache
-            vendor
-            api/gen
-            ui/static
-            ui/templates
-          key: podium-${{ hashFiles('go.mod', 'go.sum', 'Taskfile.yaml') }}
 
   vulnerability:
     runs-on: ${{ vars.RUNS_ON }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Get Cache
-        id: cache_get
-        uses: soltiHQ/actions/cache-get@main
-        with:
-          paths: |
-            .cache
-            vendor
-            api/gen
-            ui/static
-            ui/templates
-          key: podium-${{ hashFiles('go.mod', 'go.sum', 'Taskfile.yaml') }}
-
+      - uses: ./.github/actions/cache
       - name: Run ci/vulnerability
         uses: soltiHQ/actions/taskfile@main
         with: { command: ci/vulnerability }
-
-      - name: Put Cache
-        if: steps.cache_get.outputs.cache-hit != 'true'
-        uses: soltiHQ/actions/cache-put@main
-        with:
-          paths: |
-            .cache
-            vendor
-            api/gen
-            ui/static
-            ui/templates
-          key: podium-${{ hashFiles('go.mod', 'go.sum', 'Taskfile.yaml') }}
