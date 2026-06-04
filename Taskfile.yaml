@@ -15,7 +15,7 @@ includes:
 
 tasks:
   _proto/vendor:
-    desc: Vendor .proto from soltiHQ/proto.
+    desc: Vendor proto from soltiHQ/proto.
     internal: true
     silent: true
     cmds:
@@ -23,8 +23,8 @@ tasks:
         vars:
           proto_ref: "v0.0.1"
           MAPPINGS: |
-            solti/task api/proto/solti/task
             solti/discover api/proto/solti/discover
+            solti/task api/proto/solti/task
             solti/raft api/proto/solti/raft
 
   _deps:

@@ -5,12 +5,12 @@ on:
     branches-ignore:
       - main
     paths-ignore:
+      - ".github/pull_request_template.md"
+      - ".github/ISSUE_TEMPLATE/*"
       - "CODE_OF_CONDUCT.md"
+      - ".gitignore"
       - "README.md"
       - "LICENSE"
-      - ".gitignore"
-      - ".github/ISSUE_TEMPLATE/*"
-      - ".github/pull_request_template.md"
 
 concurrency:
   group: commit-${{ github.ref }}

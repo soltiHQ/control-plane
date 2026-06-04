@@ -7,8 +7,8 @@ jobs:
   fumpt:
     runs-on: ${{ vars.RUNS_ON }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/cache
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/go-cache
       - name: Run ci/fumpt
         uses: soltiHQ/actions/taskfile@main
         with: { command: ci/fumpt }
@@ -16,8 +16,8 @@ jobs:
   lint:
     runs-on: ${{ vars.RUNS_ON }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/cache
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/go-cache
       - name: Run ci/lint
         uses: soltiHQ/actions/taskfile@main
         with: { command: ci/lint }
@@ -25,8 +25,8 @@ jobs:
   test:
     runs-on: ${{ vars.RUNS_ON }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/cache
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/go-cache
       - name: Run ci/test
         uses: soltiHQ/actions/taskfile@main
         with: { command: ci/test }
@@ -34,8 +34,8 @@ jobs:
   vulnerability:
     runs-on: ${{ vars.RUNS_ON }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/cache
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/go-cache
       - name: Run ci/vulnerability
         uses: soltiHQ/actions/taskfile@main
         with: { command: ci/vulnerability }

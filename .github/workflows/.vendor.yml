@@ -7,12 +7,10 @@ jobs:
   vendor:
     runs-on: ${{ vars.RUNS_ON }}
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v6
       - name: Cache
         id: cache
-        uses: ./.github/actions/cache
-
+        uses: ./.github/actions/go-cache
       - name: Run vendor
         if: steps.cache.outputs.cache-hit != 'true'
         uses: soltiHQ/actions/taskfile@main
