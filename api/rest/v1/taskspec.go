@@ -48,7 +48,7 @@ type Spec struct {
 	RestartType string `json:"restart_type"`
 }
 
-// ListSpecsResponse is the paginated list of specs.
+// ListSpecsResponse is a cursor-paginated list of specs (next_cursor).
 type ListSpecsResponse struct {
 	Items      []Spec `json:"items"`
 	NextCursor string `json:"next_cursor,omitempty"`

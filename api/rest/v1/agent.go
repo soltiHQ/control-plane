@@ -20,7 +20,7 @@ type Agent struct {
 	LastSeenAt   string `json:"last_seen_at,omitempty"`
 }
 
-// ListAgentsResponse is the paginated list of agents.
+// ListAgentsResponse is a cursor-paginated list of agents (next_cursor).
 type ListAgentsResponse struct {
 	Items      []Agent `json:"items"`
 	NextCursor string  `json:"next_cursor,omitempty"`

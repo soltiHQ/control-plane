@@ -15,7 +15,8 @@ type Task struct {
 	ExitCode        *int32 `json:"exit_code,omitempty"`
 }
 
-// ListTasksResponse is the list of agent tasks.
+// ListTasksResponse is an offset-paginated list of agent tasks (limit/offset/total),
+// mirroring the agent's task API.
 type ListTasksResponse struct {
 	Tasks []Task `json:"tasks"`
 	Total int    `json:"total"`
@@ -33,7 +34,7 @@ type TaskRun struct {
 	ExitCode *int32 `json:"exit_code,omitempty"`
 }
 
-// ListTaskRunsResponse is the list of a task's run attempts.
+// ListTaskRunsResponse is a task's full run-attempt history (bounded; not paginated).
 type ListTaskRunsResponse struct {
 	Runs []TaskRun `json:"runs"`
 }

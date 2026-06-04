@@ -17,7 +17,7 @@ type Session struct {
 	Revoked bool `json:"revoked"`
 }
 
-// ListSessionsResponse is the list of sessions.
+// ListSessionsResponse is a user's full session list (bounded; not paginated).
 type ListSessionsResponse struct {
 	Items []Session `json:"items"`
 }

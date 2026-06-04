@@ -14,7 +14,7 @@ type User struct {
 	Disabled bool `json:"disabled"`
 }
 
-// ListUsersResponse is the paginated list of users.
+// ListUsersResponse is a cursor-paginated list of users (next_cursor).
 type ListUsersResponse struct {
 	Items      []User `json:"items"`
 	NextCursor string `json:"next_cursor,omitempty"`
