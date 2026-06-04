@@ -10,9 +10,14 @@ type Spec struct {
 	TargetLabels map[string]string `json:"target_labels,omitempty"`
 	RunnerLabels map[string]string `json:"runner_labels,omitempty"`
 	// CreateSpec is the exact canonical proto-JSON payload (solti.task.v1.CreateSpec)
-	// the control-plane would send to an agent when submitting this spec.
-	// Stored as json.RawMessage so it is emitted verbatim — its shape matches
-	// the SDK's protojson output (camelCase + enum-as-string + uint64-as-string).
+	// the control-plane would send to an agent when submitting this spec — an
+	// output-only, read-only preview (the UI shows it verbatim with a Copy button;
+	// SpecCreateRequest has no input counterpart).
+	//
+	// Opaque island: emitted verbatim as json.RawMessage, so its shape is the SDK's
+	// protojson output (camelCase + enum-as-string + uint64-as-string) — deliberately
+	// NOT the snake_case used elsewhere in this DTO. Do not parse it as part of the
+	// REST contract.
 	CreateSpec json.RawMessage `json:"create_spec,omitempty"`
 	Targets    []string        `json:"targets,omitempty"`
 
