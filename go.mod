@@ -32,6 +32,6 @@ require (
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	go.etcd.io/bbolt v1.4.3 // indirect
 	golang.org/x/net v0.54.0 // indirect
-	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 )
