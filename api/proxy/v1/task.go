@@ -1,6 +1,6 @@
 package proxyv1
 
-// Task represents a single task running on an agent.
+// Task is the current observed state of one task on an agent.
 type Task struct {
 	CreatedAt int64 `json:"created_at"`
 	UpdatedAt int64 `json:"updated_at"`
@@ -15,8 +15,8 @@ type Task struct {
 	ExitCode        *int32 `json:"exit_code,omitempty"`
 }
 
-// TaskListResponse is the response for listing agent tasks.
-type TaskListResponse struct {
+// ListTasksResponse is the response for listing agent tasks.
+type ListTasksResponse struct {
 	Tasks []Task `json:"tasks"`
 	Total int    `json:"total"`
 }
@@ -33,12 +33,12 @@ type TaskRun struct {
 	ExitCode *int32 `json:"exit_code,omitempty"`
 }
 
-// TaskRunListResponse is the response for listing task run history.
-type TaskRunListResponse struct {
+// ListTaskRunsResponse is the response for listing task run history.
+type ListTaskRunsResponse struct {
 	Runs []TaskRun `json:"runs"`
 }
 
-// TaskStatusResponse is the response for getting a single task status.
-type TaskStatusResponse struct {
-	Info *Task `json:"info,omitempty"`
+// GetTaskResponse is the response for getting a single task by id.
+type GetTaskResponse struct {
+	Task *Task `json:"task,omitempty"`
 }

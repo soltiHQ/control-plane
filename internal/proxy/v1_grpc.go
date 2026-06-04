@@ -15,7 +15,7 @@ type grpcProxyV1 struct {
 	conn *grpc.ClientConn
 }
 
-func (p *grpcProxyV1) ListTasks(ctx context.Context, f TaskFilter) (*proxyv1.TaskListResponse, error) {
+func (p *grpcProxyV1) ListTasks(ctx context.Context, f TaskFilter) (*proxyv1.ListTasksResponse, error) {
 	client := taskv1.NewTaskServiceClient(p.conn)
 
 	req := &taskv1.ListTasksRequest{
@@ -41,7 +41,7 @@ func (p *grpcProxyV1) ListTasks(ctx context.Context, f TaskFilter) (*proxyv1.Tas
 		tasks[i] = taskDataToProxy(t)
 	}
 
-	return &proxyv1.TaskListResponse{
+	return &proxyv1.ListTasksResponse{
 		Tasks: tasks,
 		Total: int(resp.GetTotal()),
 	}, nil
@@ -68,7 +68,7 @@ func (p *grpcProxyV1) SubmitTask(ctx context.Context, sub TaskSubmission) (strin
 	return taskID, nil
 }
 
-func (p *grpcProxyV1) GetTask(ctx context.Context, taskID string) (*proxyv1.TaskStatusResponse, error) {
+func (p *grpcProxyV1) GetTask(ctx context.Context, taskID string) (*proxyv1.GetTaskResponse, error) {
 	client := taskv1.NewTaskServiceClient(p.conn)
 
 	resp, err := client.GetTaskStatus(ctx, &taskv1.GetTaskStatusRequest{TaskId: taskID})
@@ -82,10 +82,10 @@ func (p *grpcProxyV1) GetTask(ctx context.Context, taskID string) (*proxyv1.Task
 		task = &t
 	}
 
-	return &proxyv1.TaskStatusResponse{Info: task}, nil
+	return &proxyv1.GetTaskResponse{Task: task}, nil
 }
 
-func (p *grpcProxyV1) ListTaskRuns(ctx context.Context, taskID string) (*proxyv1.TaskRunListResponse, error) {
+func (p *grpcProxyV1) ListTaskRuns(ctx context.Context, taskID string) (*proxyv1.ListTaskRunsResponse, error) {
 	client := taskv1.NewTaskServiceClient(p.conn)
 
 	resp, err := client.ListTaskRuns(ctx, &taskv1.ListTaskRunsRequest{TaskId: taskID})
@@ -112,7 +112,7 @@ func (p *grpcProxyV1) ListTaskRuns(ctx context.Context, taskID string) (*proxyv1
 		runs[i] = run
 	}
 
-	return &proxyv1.TaskRunListResponse{Runs: runs}, nil
+	return &proxyv1.ListTaskRunsResponse{Runs: runs}, nil
 }
 
 func (p *grpcProxyV1) DeleteTask(ctx context.Context, taskID string) error {

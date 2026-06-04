@@ -1,6 +1,7 @@
-// Package proxyv1 holds REST shapes the outbound proxy surfaces to the UI:
-// agent task listings, task details, run history.
+// Package proxyv1 defines the REST/JSON shapes the outbound proxy exposes to the UI.
 //
-// Agent communication itself speaks canonical proto-JSON (solti.v1.* from
-// api/gen/v1); this package is only the intermediate shape shown to humans.
+// Agents talk over gRPC using the protobuf types in solti.task.v1
+// (generated under api/gen/solti/task/v1).
+//
+// The proxy converts those into the structs here, so the UI does not depend on the proto schema.
 package proxyv1

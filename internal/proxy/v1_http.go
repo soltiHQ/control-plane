@@ -32,7 +32,7 @@ type httpProxyV1 struct {
 	client   httpClient
 }
 
-func (p *httpProxyV1) ListTasks(ctx context.Context, f TaskFilter) (*proxyv1.TaskListResponse, error) {
+func (p *httpProxyV1) ListTasks(ctx context.Context, f TaskFilter) (*proxyv1.ListTasksResponse, error) {
 	u, err := url.Parse(p.endpoint + v1PathTasks)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrBadEndpointURL, err)
@@ -63,7 +63,7 @@ func (p *httpProxyV1) ListTasks(ctx context.Context, f TaskFilter) (*proxyv1.Tas
 		tasks[i] = taskDataToProxy(t)
 	}
 
-	return &proxyv1.TaskListResponse{
+	return &proxyv1.ListTasksResponse{
 		Tasks: tasks,
 		Total: int(out.GetTotal()),
 	}, nil
@@ -92,7 +92,7 @@ func (p *httpProxyV1) SubmitTask(ctx context.Context, sub TaskSubmission) (strin
 	return taskID, nil
 }
 
-func (p *httpProxyV1) GetTask(ctx context.Context, taskID string) (*proxyv1.TaskStatusResponse, error) {
+func (p *httpProxyV1) GetTask(ctx context.Context, taskID string) (*proxyv1.GetTaskResponse, error) {
 	u, err := url.Parse(fmt.Sprintf("%s%s/%s", p.endpoint, v1PathTasks, taskID))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrBadEndpointURL, err)
@@ -108,10 +108,10 @@ func (p *httpProxyV1) GetTask(ctx context.Context, taskID string) (*proxyv1.Task
 		t := taskDataToProxy(data)
 		task = &t
 	}
-	return &proxyv1.TaskStatusResponse{Info: task}, nil
+	return &proxyv1.GetTaskResponse{Task: task}, nil
 }
 
-func (p *httpProxyV1) ListTaskRuns(ctx context.Context, taskID string) (*proxyv1.TaskRunListResponse, error) {
+func (p *httpProxyV1) ListTaskRuns(ctx context.Context, taskID string) (*proxyv1.ListTaskRunsResponse, error) {
 	u, err := url.Parse(fmt.Sprintf("%s%s/%s/runs", p.endpoint, v1PathTasks, taskID))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrBadEndpointURL, err)
@@ -140,7 +140,7 @@ func (p *httpProxyV1) ListTaskRuns(ctx context.Context, taskID string) (*proxyv1
 		}
 		runs[i] = run
 	}
-	return &proxyv1.TaskRunListResponse{Runs: runs}, nil
+	return &proxyv1.ListTaskRunsResponse{Runs: runs}, nil
 }
 
 func (p *httpProxyV1) DeleteTask(ctx context.Context, taskID string) error {

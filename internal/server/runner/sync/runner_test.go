@@ -32,9 +32,9 @@ type fakeProxy struct {
 	listCalls    int
 }
 
-func (f *fakeProxy) ListTasks(ctx context.Context, _ proxy.TaskFilter) (*proxyv1.TaskListResponse, error) {
+func (f *fakeProxy) ListTasks(ctx context.Context, _ proxy.TaskFilter) (*proxyv1.ListTasksResponse, error) {
 	f.listCalls++
-	return &proxyv1.TaskListResponse{}, nil
+	return &proxyv1.ListTasksResponse{}, nil
 }
 
 func (f *fakeProxy) SubmitTask(ctx context.Context, sub proxy.TaskSubmission) (string, error) {
@@ -62,14 +62,14 @@ func (f *fakeProxy) DeleteTask(ctx context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeProxy) GetTask(ctx context.Context, id string) (*proxyv1.TaskStatusResponse, error) {
+func (f *fakeProxy) GetTask(ctx context.Context, id string) (*proxyv1.GetTaskResponse, error) {
 	f.gets = append(f.gets, id)
-	return &proxyv1.TaskStatusResponse{}, nil
+	return &proxyv1.GetTaskResponse{}, nil
 }
 
-func (f *fakeProxy) ListTaskRuns(ctx context.Context, id string) (*proxyv1.TaskRunListResponse, error) {
+func (f *fakeProxy) ListTaskRuns(ctx context.Context, id string) (*proxyv1.ListTaskRunsResponse, error) {
 	f.listTaskRuns = append(f.listTaskRuns, id)
-	return &proxyv1.TaskRunListResponse{}, nil
+	return &proxyv1.ListTaskRunsResponse{}, nil
 }
 
 func (f *fakeProxy) StreamTaskLogs(ctx context.Context, _ string) (<-chan *taskv1.StreamTaskLogsResponse, error) {
