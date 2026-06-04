@@ -77,7 +77,7 @@ func (a *API) agentList(w http.ResponseWriter, r *http.Request, mode httpctx.Ren
 
 	items := mapSlice(res.Items, wire.AgentToREST)
 	response.OK(w, r, mode, &responder.View{
-		Data: restv1.AgentListResponse{
+		Data: restv1.ListAgentsResponse{
 			Items:      items,
 			NextCursor: res.NextCursor,
 		},

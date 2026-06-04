@@ -77,7 +77,7 @@ func (a *API) specList(w http.ResponseWriter, r *http.Request, mode httpctx.Rend
 
 	items := mapSlice(res.Items, wire.SpecToREST)
 	response.OK(w, r, mode, &responder.View{
-		Data: restv1.SpecListResponse{
+		Data: restv1.ListSpecsResponse{
 			Items:      items,
 			NextCursor: res.NextCursor,
 		},

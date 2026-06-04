@@ -15,7 +15,7 @@ type Task struct {
 	ExitCode        *int32 `json:"exit_code,omitempty"`
 }
 
-// ListTasksResponse is the response for listing agent tasks.
+// ListTasksResponse is the list of agent tasks.
 type ListTasksResponse struct {
 	Tasks []Task `json:"tasks"`
 	Total int    `json:"total"`
@@ -33,7 +33,7 @@ type TaskRun struct {
 	ExitCode *int32 `json:"exit_code,omitempty"`
 }
 
-// ListTaskRunsResponse is the response for listing task run history.
+// ListTaskRunsResponse is the list of a task's run attempts.
 type ListTaskRunsResponse struct {
 	Runs []TaskRun `json:"runs"`
 }

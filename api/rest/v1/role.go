@@ -6,7 +6,7 @@ type Role struct {
 	Name string `json:"name"`
 }
 
-// RoleListResponse is the list of roles.
-type RoleListResponse struct {
+// ListRolesResponse is the list of roles.
+type ListRolesResponse struct {
 	Items []Role `json:"items"`
 }

@@ -9,7 +9,7 @@ type Spec struct {
 	KindConfig   map[string]any    `json:"kind_config,omitempty"`
 	TargetLabels map[string]string `json:"target_labels,omitempty"`
 	RunnerLabels map[string]string `json:"runner_labels,omitempty"`
-	// CreateSpec is the exact canonical proto-JSON payload (solti.v1.CreateSpec)
+	// CreateSpec is the exact canonical proto-JSON payload (solti.task.v1.CreateSpec)
 	// the control-plane would send to an agent when submitting this spec.
 	// Stored as json.RawMessage so it is emitted verbatim — its shape matches
 	// the SDK's protojson output (camelCase + enum-as-string + uint64-as-string).
@@ -48,8 +48,8 @@ type Spec struct {
 	RestartType string `json:"restart_type"`
 }
 
-// SpecListResponse is the paginated list of specs.
-type SpecListResponse struct {
+// ListSpecsResponse is the paginated list of specs.
+type ListSpecsResponse struct {
 	Items      []Spec `json:"items"`
 	NextCursor string `json:"next_cursor,omitempty"`
 }

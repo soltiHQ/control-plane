@@ -147,7 +147,7 @@ func (a *API) permissionsList(w http.ResponseWriter, r *http.Request, mode httpc
 		items = append(items, wire.PermissionToREST(p))
 	}
 	response.OK(w, r, mode, &responder.View{
-		Data: restv1.PermissionListResponse{Items: items},
+		Data: restv1.ListPermissionsResponse{Items: items},
 	})
 }
 
@@ -161,7 +161,7 @@ func (a *API) rolesList(w http.ResponseWriter, r *http.Request, mode httpctx.Ren
 
 	items := mapSlice(roles, wire.RoleToREST)
 	response.OK(w, r, mode, &responder.View{
-		Data: restv1.RoleListResponse{Items: items},
+		Data: restv1.ListRolesResponse{Items: items},
 	})
 }
 

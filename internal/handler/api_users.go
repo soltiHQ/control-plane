@@ -116,7 +116,7 @@ func (a *API) userList(w http.ResponseWriter, r *http.Request, mode httpctx.Rend
 
 	items := mapSlice(res.Items, wire.UserToREST)
 	response.OK(w, r, mode, &responder.View{
-		Data: restv1.UserListResponse{
+		Data: restv1.ListUsersResponse{
 			Items:      items,
 			NextCursor: res.NextCursor,
 		},
@@ -161,7 +161,7 @@ func (a *API) usersSessions(w http.ResponseWriter, r *http.Request, mode httpctx
 		return b.CreatedAt.Compare(a.CreatedAt)
 	})
 	response.OK(w, r, mode, &responder.View{
-		Data:      restv1.SessionResponse{Items: items},
+		Data:      restv1.ListSessionsResponse{Items: items},
 		Component: contentUser.Sessions(items),
 	})
 }
