@@ -10,12 +10,6 @@ import (
 var _ domain.Entity[*Agent] = (*Agent)(nil)
 
 // Agent is a core domain entity that represents an Agent connected to the control-plane.
-//
-// Agent is a remote worker/node that runs an agent process and periodically reports its state to the control-plane.
-//
-// Notes:
-//   - Metadata is agent-owned data reported by the agent (not modified).
-//   - Labels are control-plane owned annotations (operators/system), not reported by the agent.
 type Agent struct {
 	heartbeatInterval time.Duration
 	createdAt         time.Time
@@ -209,25 +203,35 @@ func (a *Agent) SetStaleAt(t time.Time) { a.staleAt = t }
 // CreatedAt returns the creation timestamp.
 func (a *Agent) CreatedAt() time.Time { return a.createdAt }
 
-// SetCreatedAt overrides the creation timestamp.
-func (a *Agent) SetCreatedAt(t time.Time) { a.createdAt = t }
-
 // UpdatedAt returns the last modification timestamp.
 func (a *Agent) UpdatedAt() time.Time { return a.updatedAt }
 
-// SetUpdatedAt overrides the modification timestamp.
+// SetCreatedAt restores the creation timestamp (persistence hook).
+func (a *Agent) SetCreatedAt(t time.Time) { a.createdAt = t }
+
+// SetUpdatedAt restores the modification timestamp (persistence hook).
 func (a *Agent) SetUpdatedAt(t time.Time) { a.updatedAt = t }
 
-// SetLastSeenAt / SetEndpointType / SetAPIVersion / SetOS / SetArch /
-// SetPlatform / SetUptimeSeconds / SetMetadata / SetLabels / SetCapabilities
-// are persistence-adapter hooks that restore every field on reconstruction.
-func (a *Agent) SetLastSeenAt(t time.Time)           { a.lastSeenAt = t }
+// SetLastSeenAt restores the last-seen timestamp (persistence hook).
+func (a *Agent) SetLastSeenAt(t time.Time) { a.lastSeenAt = t }
+
+// SetEndpointType restores the transport type (persistence hook).
 func (a *Agent) SetEndpointType(e enum.EndpointType) { a.endpointType = e }
-func (a *Agent) SetAPIVersion(v enum.APIVersion)     { a.apiVersion = v }
-func (a *Agent) SetOS(s string)                      { a.os = s }
-func (a *Agent) SetArch(s string)                    { a.arch = s }
-func (a *Agent) SetPlatform(s string)                { a.platform = s }
-func (a *Agent) SetUptimeSeconds(v int64)            { a.uptimeSeconds = v }
+
+// SetAPIVersion restores the API version (persistence hook).
+func (a *Agent) SetAPIVersion(v enum.APIVersion) { a.apiVersion = v }
+
+// SetOS restores the operating system (persistence hook).
+func (a *Agent) SetOS(s string) { a.os = s }
+
+// SetArch restores the architecture (persistence hook).
+func (a *Agent) SetArch(s string) { a.arch = s }
+
+// SetPlatform restores the platform (persistence hook).
+func (a *Agent) SetPlatform(s string) { a.platform = s }
+
+// SetUptimeSeconds restores the reported uptime (persistence hook).
+func (a *Agent) SetUptimeSeconds(v int64) { a.uptimeSeconds = v }
 
 // SetMetadata replaces the full metadata map with a defensive copy.
 func (a *Agent) SetMetadata(m map[string]string) {

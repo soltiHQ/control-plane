@@ -20,53 +20,24 @@ type BackoffConfig struct {
 }
 
 // Spec represents a desired task specification managed by the control-plane.
-//
-// A Spec is the "desired state" in the reconciliation model: it defines what
-// task should run on which agents. The sync runner compares it against what the
-// agents actually have (via Rollout records) and converges them.
-//
-// # Versioning: two counters
-//
-//   - Version bumps on every Upsert, even pure-metadata edits (rename,
-//     target-list change). It is the UI-facing "edits counter" — used for audit
-//     and as the optimistic-concurrency token (which save the user is on).
-//   - Generation bumps only when a runtime field changes (one that SpecToProto
-//     reads: slot, kind, timeout, restart/interval, backoff, runnerLabels).
-//     Rollouts track ObservedGeneration; a re-create on the agent fires only
-//     when ObservedGeneration != Generation. This stops pure-metadata edits from
-//     churning live tasks on every agent. See RuntimeEquals.
-//
-// # Soft delete
-//
-// DeletionRequested flips on delete: the record survives so the sync runner can
-// honor rollout uninstalls (DeleteTask on each agent) before the finalizer drops
-// the row — the k8s deletionTimestamp + finalizer pattern.
 type Spec struct {
-	// CP-owned metadata: identity, versioning, targeting, timestamps.
 	id                string
 	name              string
-	version           int               // edits counter; bumps on every Upsert
-	generation        int               // runtime-change counter; drives re-create
-	deletionRequested bool              // soft-delete tombstone flag
-	targets           []string          // explicit target agent IDs
-	targetLabels      map[string]string // label selector for dynamic targeting
+	version           int
+	generation        int
+	deletionRequested bool
+	targets           []string
+	targetLabels      map[string]string
 	createdAt         time.Time
 	updatedAt         time.Time
 
-	// Task definition: the fields that mirror the agent's CreateSpec and decide
-	// what actually runs. (Admission is intentionally absent — the CP always
-	// pins Replace on the wire; see internal/proxy/convert.go.)
-	//
-	// slot is immutable: set once in NewSpec, never changed (there is no
-	// SetSlot). It is the task's identity/lane on the agent — a different slot is
-	// a new deployment, not an edit.
 	slot         string
 	kindType     enum.TaskKindType
 	restartType  enum.RestartType
 	timeoutMs    int64
-	intervalMs   int64 // only meaningful for RestartAlways
+	intervalMs   int64
 	backoff      BackoffConfig
-	kindConfig   map[string]any // backend config; shape depends on kindType
+	kindConfig   map[string]any
 	runnerLabels map[string]string
 }
 
@@ -106,26 +77,59 @@ func NewSpec(id, name, slot string) (*Spec, error) {
 	}, nil
 }
 
-func (ts *Spec) ID() string              { return ts.id }
-func (ts *Spec) Name() string            { return ts.name }
-func (ts *Spec) Slot() string            { return ts.slot }
-func (ts *Spec) Version() int            { return ts.version }
-func (ts *Spec) Generation() int         { return ts.generation }
-func (ts *Spec) DeletionRequested() bool { return ts.deletionRequested }
-func (ts *Spec) CreatedAt() time.Time    { return ts.createdAt }
-func (ts *Spec) UpdatedAt() time.Time    { return ts.updatedAt }
+// ID returns the spec's unique identifier.
+func (ts *Spec) ID() string { return ts.id }
 
-// SetCreatedAt / SetUpdatedAt / SetVersion / SetGeneration - used by persistence adapters to restore the exact state on reconstruction.
-func (ts *Spec) SetCreatedAt(t time.Time)      { ts.createdAt = t }
-func (ts *Spec) SetUpdatedAt(t time.Time)      { ts.updatedAt = t }
-func (ts *Spec) SetVersion(v int)              { ts.version = v }
-func (ts *Spec) SetGeneration(g int)           { ts.generation = g }
-func (ts *Spec) SetDeletionRequested(b bool)   { ts.deletionRequested = b }
-func (ts *Spec) KindType() enum.TaskKindType   { return ts.kindType }
-func (ts *Spec) TimeoutMs() int64              { return ts.timeoutMs }
+// Name returns the human-readable spec name.
+func (ts *Spec) Name() string { return ts.name }
+
+// Slot returns the immutable task slot — its lane/identity on the agent.
+func (ts *Spec) Slot() string { return ts.slot }
+
+// Version returns the edits counter (bumps on every Upsert).
+func (ts *Spec) Version() int { return ts.version }
+
+// Generation returns the runtime-change counter (drives re-create on agents).
+func (ts *Spec) Generation() int { return ts.generation }
+
+// DeletionRequested reports whether the spec is soft-deleted and awaiting finalization.
+func (ts *Spec) DeletionRequested() bool { return ts.deletionRequested }
+
+// CreatedAt returns the creation timestamp.
+func (ts *Spec) CreatedAt() time.Time { return ts.createdAt }
+
+// UpdatedAt returns the last modification timestamp.
+func (ts *Spec) UpdatedAt() time.Time { return ts.updatedAt }
+
+// KindType returns the task backend kind.
+func (ts *Spec) KindType() enum.TaskKindType { return ts.kindType }
+
+// TimeoutMs returns the task execution timeout in milliseconds.
+func (ts *Spec) TimeoutMs() int64 { return ts.timeoutMs }
+
+// RestartType returns the task restart policy.
 func (ts *Spec) RestartType() enum.RestartType { return ts.restartType }
-func (ts *Spec) IntervalMs() int64             { return ts.intervalMs }
-func (ts *Spec) Backoff() BackoffConfig        { return ts.backoff }
+
+// IntervalMs returns the restart interval in milliseconds (meaningful only for RestartAlways).
+func (ts *Spec) IntervalMs() int64 { return ts.intervalMs }
+
+// Backoff returns the restart backoff parameters.
+func (ts *Spec) Backoff() BackoffConfig { return ts.backoff }
+
+// SetCreatedAt restores the creation timestamp (persistence hook).
+func (ts *Spec) SetCreatedAt(t time.Time) { ts.createdAt = t }
+
+// SetUpdatedAt restores the modification timestamp (persistence hook).
+func (ts *Spec) SetUpdatedAt(t time.Time) { ts.updatedAt = t }
+
+// SetVersion restores the edits counter (persistence hook).
+func (ts *Spec) SetVersion(v int) { ts.version = v }
+
+// SetGeneration restores the runtime-change counter (persistence hook).
+func (ts *Spec) SetGeneration(g int) { ts.generation = g }
+
+// SetDeletionRequested restores the soft-delete flag (persistence hook).
+func (ts *Spec) SetDeletionRequested(b bool) { ts.deletionRequested = b }
 
 // KindConfig returns a defensive copy of the kind configuration.
 func (ts *Spec) KindConfig() map[string]any {
@@ -161,6 +165,7 @@ func (ts *Spec) RunnerLabels() map[string]string {
 	return out
 }
 
+// SetName updates the spec name (metadata-only).
 func (ts *Spec) SetName(name string) {
 	if ts.name == name {
 		return
@@ -169,6 +174,7 @@ func (ts *Spec) SetName(name string) {
 	ts.updatedAt = time.Now()
 }
 
+// SetKindType updates the task backend kind (runtime field).
 func (ts *Spec) SetKindType(kt enum.TaskKindType) {
 	if ts.kindType == kt {
 		return
@@ -177,6 +183,7 @@ func (ts *Spec) SetKindType(kt enum.TaskKindType) {
 	ts.updatedAt = time.Now()
 }
 
+// SetKindConfig replaces the backend config with a defensive copy (runtime field).
 func (ts *Spec) SetKindConfig(cfg map[string]any) {
 	if anyMapEqual(ts.kindConfig, cfg) {
 		return
@@ -189,6 +196,7 @@ func (ts *Spec) SetKindConfig(cfg map[string]any) {
 	ts.updatedAt = time.Now()
 }
 
+// SetTimeoutMs updates the execution timeout in milliseconds (runtime field).
 func (ts *Spec) SetTimeoutMs(ms int64) {
 	if ts.timeoutMs == ms {
 		return
@@ -197,6 +205,7 @@ func (ts *Spec) SetTimeoutMs(ms int64) {
 	ts.updatedAt = time.Now()
 }
 
+// SetRestartType updates the restart policy (runtime field).
 func (ts *Spec) SetRestartType(rt enum.RestartType) {
 	if ts.restartType == rt {
 		return
@@ -205,6 +214,7 @@ func (ts *Spec) SetRestartType(rt enum.RestartType) {
 	ts.updatedAt = time.Now()
 }
 
+// SetIntervalMs updates the restart interval in milliseconds (runtime field).
 func (ts *Spec) SetIntervalMs(ms int64) {
 	if ts.intervalMs == ms {
 		return
@@ -213,6 +223,7 @@ func (ts *Spec) SetIntervalMs(ms int64) {
 	ts.updatedAt = time.Now()
 }
 
+// SetBackoff updates the restart backoff parameters (runtime field).
 func (ts *Spec) SetBackoff(b BackoffConfig) {
 	if ts.backoff == b {
 		return
@@ -221,6 +232,7 @@ func (ts *Spec) SetBackoff(b BackoffConfig) {
 	ts.updatedAt = time.Now()
 }
 
+// SetTargets replaces the explicit target agent IDs with a defensive copy (metadata-only).
 func (ts *Spec) SetTargets(targets []string) {
 	if slices.Equal(ts.targets, targets) {
 		return
@@ -231,6 +243,7 @@ func (ts *Spec) SetTargets(targets []string) {
 	ts.updatedAt = time.Now()
 }
 
+// SetTargetLabels replaces the target label selector with a defensive copy (metadata-only).
 func (ts *Spec) SetTargetLabels(labels map[string]string) {
 	if stringMapEqual(ts.targetLabels, labels) {
 		return
@@ -243,6 +256,7 @@ func (ts *Spec) SetTargetLabels(labels map[string]string) {
 	ts.updatedAt = time.Now()
 }
 
+// SetRunnerLabels replaces the runner labels with a defensive copy (runtime field).
 func (ts *Spec) SetRunnerLabels(labels map[string]string) {
 	if stringMapEqual(ts.runnerLabels, labels) {
 		return
@@ -255,27 +269,19 @@ func (ts *Spec) SetRunnerLabels(labels map[string]string) {
 	ts.updatedAt = time.Now()
 }
 
-// IncrementVersion bumps the edits counter (version) and updates the
-// timestamp. Callers should invoke this on every Upsert.
+// IncrementVersion bumps the edits counter (version) and updates the timestamp. Callers should invoke this on every Upsert.
 func (ts *Spec) IncrementVersion() {
 	ts.version++
 	ts.updatedAt = time.Now()
 }
 
-// BumpGeneration bumps the runtime-change counter. Callers should invoke
-// this on Upsert **only if** a field that `SpecToProto` reads has
-// changed (slot, kind, timeout, restart/interval, backoff, admission,
-// runnerLabels). Pure metadata edits (name, targets) must NOT bump
-// generation — otherwise every rename would force a re-create on every
-// agent.
+// BumpGeneration bumps the runtime-change counter.
 func (ts *Spec) BumpGeneration() {
 	ts.generation++
 	ts.updatedAt = time.Now()
 }
 
-// MarkForDeletion flips the soft-delete flag. The Spec record survives
-// until every Rollout for it is uninstalled; the sync runner's finalizer
-// pass then calls `DeleteSpec` for real.
+// MarkForDeletion flips the soft-delete flag.
 func (ts *Spec) MarkForDeletion() {
 	if ts.deletionRequested {
 		return
@@ -323,20 +329,7 @@ func (ts *Spec) Clone() *Spec {
 	}
 }
 
-// RuntimeEquals reports whether two specs are identical in every field
-// that `SpecToProto` reads — i.e. every field that affects what the
-// agent actually runs. Returns `true` for pure-metadata edits (name,
-// targets, targetLabels, timestamps), which must NOT rotate the
-// generation counter.
-//
-// Fields compared: slot, kindType, kindConfig, timeoutMs, restartType,
-// intervalMs, backoff, runnerLabels.
-//
-// Reason this lives in the domain package and not in the service: it's
-// a pure property of the Spec value type, used by Upsert to decide
-// whether to call `BumpGeneration`. Keeping the list of runtime fields
-// next to the struct definition is the easiest way to keep it honest
-// when someone adds a new field and forgets to update the comparator.
+// RuntimeEquals reports whether two specs are equals.
 func (ts *Spec) RuntimeEquals(other *Spec) bool {
 	if ts == nil || other == nil {
 		return ts == other
@@ -355,8 +348,6 @@ func (ts *Spec) RuntimeEquals(other *Spec) bool {
 	return anyMapEqual(ts.kindConfig, other.kindConfig)
 }
 
-// stringMapEqual returns true when both maps hold the same set of
-// (key, value) pairs.
 func stringMapEqual(a, b map[string]string) bool {
 	if len(a) != len(b) {
 		return false
@@ -369,10 +360,6 @@ func stringMapEqual(a, b map[string]string) bool {
 	return true
 }
 
-// anyMapEqual compares two `map[string]any`. Nested values fall back to
-// `reflect.DeepEqual` because kindConfig is user-supplied JSON — there is
-// no richer type information to exploit. Called only on Upsert, not in a
-// hot path.
 func anyMapEqual(a, b map[string]any) bool {
 	if len(a) != len(b) {
 		return false

@@ -10,18 +10,6 @@ import (
 var _ domain.Entity[*User] = (*User)(nil)
 
 // User is a core domain entity representing a system user.
-//
-// A user can be a human or a service identity. The user is identified by:
-//   - id: internal immutable identifier
-//   - subject: stable authentication subject (e.g. JWT "sub") used for login mapping
-//
-// Access is granted via:
-//   - role IDs (RBAC roles)
-//   - direct per-user permissions (exceptions/overrides)
-//
-// Notes:
-//   - roleIDs and permissions are unique sets (no duplicates).
-//   - This model stores assignments; role expansion into effective permissions belongs elsewhere.
 type User struct {
 	createdAt time.Time
 	updatedAt time.Time
@@ -79,8 +67,10 @@ func (u *User) CreatedAt() time.Time { return u.createdAt }
 // UpdatedAt returns the timestamp of the last modification.
 func (u *User) UpdatedAt() time.Time { return u.updatedAt }
 
-// SetCreatedAt / SetUpdatedAt — used by persistence adapters.
+// SetCreatedAt restores the creation timestamp (persistence hook).
 func (u *User) SetCreatedAt(t time.Time) { u.createdAt = t }
+
+// SetUpdatedAt restores the modification timestamp (persistence hook).
 func (u *User) SetUpdatedAt(t time.Time) { u.updatedAt = t }
 
 // SetEmail updates the user's email.
@@ -136,10 +126,6 @@ func (u *User) RoleIDsAll() []string {
 }
 
 // SetRoleIDs replaces the user's full set of role IDs.
-//
-// Input is de-duplicated and empty IDs are dropped (the "unique set"
-// invariant). No-op when the resulting set equals the current one — UpdatedAt
-// is bumped only on a real change.
 func (u *User) SetRoleIDs(roles []string) {
 	var (
 		out  = make([]string, 0, len(roles))
@@ -155,8 +141,6 @@ func (u *User) SetRoleIDs(roles []string) {
 		seen[id] = struct{}{}
 		out = append(out, id)
 	}
-
-	// Both sets are de-duplicated, so equal length + full overlap == equal set.
 	if len(out) == len(u.roleIDs) {
 		same := true
 		for _, id := range u.roleIDs {
@@ -185,10 +169,6 @@ func (u *User) PermissionsAll() []enum.Permission {
 }
 
 // SetPermissions replaces the user's full set of directly-granted permissions.
-//
-// Input is de-duplicated and empty values are dropped (the "unique set"
-// invariant). No-op when the resulting set equals the current one — UpdatedAt
-// is bumped only on a real change.
 func (u *User) SetPermissions(perms []string) {
 	var (
 		out  = make([]enum.Permission, 0, len(perms))
@@ -249,7 +229,6 @@ func (u *User) PermissionHas(p enum.Permission) bool {
 }
 
 // RoleAdd assigns a role to the user.
-// It is idempotent: adding an existing role does nothing.
 func (u *User) RoleAdd(roleID string) error {
 	if roleID == "" {
 		return domain.ErrEmptyID
@@ -263,7 +242,6 @@ func (u *User) RoleAdd(roleID string) error {
 }
 
 // RoleDelete removes a role from the user.
-// If a role does not exist, nothing happens.
 func (u *User) RoleDelete(roleID string) {
 	for i, id := range u.roleIDs {
 		if id == roleID {
@@ -275,7 +253,6 @@ func (u *User) RoleDelete(roleID string) {
 }
 
 // PermissionAdd grants a permission directly to the user.
-// It is idempotent: adding an existing permission does nothing.
 func (u *User) PermissionAdd(p enum.Permission) error {
 	if p == "" {
 		return domain.ErrFieldEmpty
@@ -289,7 +266,6 @@ func (u *User) PermissionAdd(p enum.Permission) error {
 }
 
 // PermissionDelete revokes a permission from the user.
-// If permission does not exist, nothing happens.
 func (u *User) PermissionDelete(p enum.Permission) {
 	for i, x := range u.permissions {
 		if x == p {

@@ -10,15 +10,6 @@ import (
 var _ domain.Entity[*Rollout] = (*Rollout)(nil)
 
 // Rollout tracks the reconciliation state of a Spec on a specific agent.
-//
-// The record captures three orthogonal pieces of information:
-//
-//   - **Intent** ([enum.RolloutIntent]): what the sync runner should do next:
-//     Install, Update, Uninstall, or Noop.
-//   - **Status** ([enum.SyncStatus]): what happened last time the sync runner touched this rollout:
-//     Pending, Synced, Failed, Drift, or Unknown.
-//   - **Generation tracking**: `ObservedGeneration` is the last `Spec.Generation` confirmed on the agent;
-//     `DesiredGeneration` is what the rollout should converge to.
 type Rollout struct {
 	createdAt    time.Time
 	updatedAt    time.Time
@@ -106,8 +97,10 @@ func (ss *Rollout) CreatedAt() time.Time { return ss.createdAt }
 // UpdatedAt returns the last modification timestamp.
 func (ss *Rollout) UpdatedAt() time.Time { return ss.updatedAt }
 
-// SetCreatedAt / SetUpdatedAt - used by persistence adapters to restore original timestamps.
+// SetCreatedAt restores the creation timestamp (persistence hook).
 func (ss *Rollout) SetCreatedAt(t time.Time) { ss.createdAt = t }
+
+// SetUpdatedAt restores the modification timestamp (persistence hook).
 func (ss *Rollout) SetUpdatedAt(t time.Time) { ss.updatedAt = t }
 
 // SetIntent records the next reconciliation action the sync runner should take.

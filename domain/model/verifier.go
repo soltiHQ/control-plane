@@ -10,15 +10,6 @@ import (
 var _ domain.Entity[*Verifier] = (*Verifier)(nil)
 
 // Verifier stores authentication verification material for a credential.
-//
-// Verifier is security-sensitive data used to verify an authentication attempt.
-// It is separated from Credential to keep different lifecycles isolated:
-//   - Credential: binds user <-> auth kind (rarely changes)
-//   - Verifier: stores verifier payload (changes on password reset / key rotation)
-//
-// Notes:
-//   - Never store raw secrets (passwords, API keys). Store hashes/params instead.
-//   - Data layout depends on Auth kind (password/api_key/etc).
 type Verifier struct {
 	createdAt time.Time
 	updatedAt time.Time
@@ -28,7 +19,6 @@ type Verifier struct {
 
 	auth enum.Auth
 
-	// Contains auth-kind specific verifier payload (e.g., password hash/params).
 	data map[string]string
 }
 
@@ -70,8 +60,10 @@ func (v *Verifier) CreatedAt() time.Time { return v.createdAt }
 // UpdatedAt returns the timestamp of the last modification.
 func (v *Verifier) UpdatedAt() time.Time { return v.updatedAt }
 
-// SetCreatedAt / SetUpdatedAt — used by persistence adapters.
+// SetCreatedAt restores the creation timestamp (persistence hook).
 func (v *Verifier) SetCreatedAt(t time.Time) { v.createdAt = t }
+
+// SetUpdatedAt restores the modification timestamp (persistence hook).
 func (v *Verifier) SetUpdatedAt(t time.Time) { v.updatedAt = t }
 
 // DataGet returns a verifier data value by key.
@@ -106,8 +98,6 @@ func (v *Verifier) DataSet(key, value string) error {
 }
 
 // DataDelete removes a verifier data key and bumps UpdatedAt if it existed.
-//
-// The operation is idempotent: deleting a missing key is a no-op.
 func (v *Verifier) DataDelete(key string) error {
 	if key == "" {
 		return domain.ErrFieldEmpty
@@ -129,7 +119,6 @@ func (v *Verifier) Clone() *Verifier {
 	for k, x := range v.data {
 		out[k] = x
 	}
-
 	return &Verifier{
 		createdAt:    v.createdAt,
 		updatedAt:    v.updatedAt,

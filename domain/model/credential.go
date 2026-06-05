@@ -56,9 +56,10 @@ func (c *Credential) CreatedAt() time.Time { return c.createdAt }
 // UpdatedAt returns the timestamp of the last modification to the credential.
 func (c *Credential) UpdatedAt() time.Time { return c.updatedAt }
 
-// SetCreatedAt / SetUpdatedAt - used by persistence adapters to restore original timestamps
-// when reconstructing from a stored state.
+// SetCreatedAt restores the creation timestamp (persistence hook).
 func (c *Credential) SetCreatedAt(t time.Time) { c.createdAt = t }
+
+// SetUpdatedAt restores the modification timestamp (persistence hook).
 func (c *Credential) SetUpdatedAt(t time.Time) { c.updatedAt = t }
 
 // Secret returns a secret value by key.
