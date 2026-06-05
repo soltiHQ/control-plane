@@ -135,11 +135,30 @@ func (u *User) RoleIDsAll() []string {
 	return out
 }
 
-// RolesIDsNew RoleIDsNew update full list of user's roles.
+// RolesIDsNew replaces the user's full set of role IDs.
 func (u *User) RolesIDsNew(roles []string) {
-	u.roleIDs = make([]string, len(roles))
-	copy(u.roleIDs, roles)
 	u.updatedAt = time.Now()
+
+	if len(roles) == 0 {
+		u.roleIDs = nil
+		return
+	}
+
+	var (
+		out  = make([]string, 0, len(roles))
+		seen = make(map[string]struct{}, len(roles))
+	)
+	for _, id := range roles {
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	u.roleIDs = out
 }
 
 // PermissionsAll returns a copy of permissions granted directly to the user.
