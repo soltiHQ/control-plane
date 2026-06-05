@@ -121,7 +121,13 @@ func (s *Service) PatchLabels(ctx context.Context, req PatchLabels) (*model.Agen
 		return nil, storage.ErrInternal
 	}
 
+	before := agent.UpdatedAt()
 	replaceLabels(agent, req.Labels)
+	if agent.UpdatedAt().Equal(before) {
+		// No label actually changed — skip the write so we don't emit a
+		// redundant Raft entry and SSE notification for a no-op patch.
+		return agent.Clone(), nil
+	}
 	if err = s.store.UpsertAgent(ctx, agent); err != nil {
 		return nil, err
 	}
@@ -133,9 +139,14 @@ func (s *Service) PatchLabels(ctx context.Context, req PatchLabels) (*model.Agen
 	return agent.Clone(), nil
 }
 
+// replaceLabels reconciles the agent's labels toward the desired set as a diff
+// (not delete-all + add-all), so that re-applying the same labels is a true
+// no-op and leaves UpdatedAt untouched. An empty value means "remove the key".
 func replaceLabels(a *model.Agent, labels map[string]string) {
 	for k := range a.LabelsAll() {
-		a.LabelDelete(k)
+		if v, ok := labels[k]; !ok || v == "" {
+			a.LabelDelete(k)
+		}
 	}
 	for k, v := range labels {
 		if k == "" || v == "" {
