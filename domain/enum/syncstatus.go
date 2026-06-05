@@ -16,12 +16,12 @@ func (s SyncStatus) String() string {
 	switch s {
 	case SyncStatusPending:
 		return "pending"
+	case SyncStatusFailed:
+		return "failed"
 	case SyncStatusSynced:
 		return "synced"
 	case SyncStatusDrift:
 		return "drift"
-	case SyncStatusFailed:
-		return "failed"
 	case SyncStatusUnknown:
 		return "unknown"
 	default:

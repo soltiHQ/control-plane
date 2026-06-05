@@ -9,8 +9,7 @@ import (
 
 var _ domain.Entity[*Credential] = (*Credential)(nil)
 
-// Credential is a core domain entity that represents a single authentication method
-// bound to a specific user (e.g., password, api_key, oidc, etc.).
+// Credential is a core domain entity that represents a single authentication method bound to a specific user.
 type Credential struct {
 	createdAt time.Time
 	updatedAt time.Time
@@ -48,7 +47,7 @@ func (c *Credential) ID() string { return c.id }
 // UserID returns the identifier of the user this credential belongs to.
 func (c *Credential) UserID() string { return c.userID }
 
-// AuthKind returns the authentication kind associated with this credential (e.g., password, api_key, oidc).
+// AuthKind returns the authentication kind associated with this credential.
 func (c *Credential) AuthKind() enum.Auth { return c.auth }
 
 // CreatedAt returns the timestamp when the credential was created.
@@ -57,9 +56,8 @@ func (c *Credential) CreatedAt() time.Time { return c.createdAt }
 // UpdatedAt returns the timestamp of the last modification to the credential.
 func (c *Credential) UpdatedAt() time.Time { return c.updatedAt }
 
-// SetCreatedAt / SetUpdatedAt — used by persistence adapters (DB rows, Raft
-// replay) to restore original timestamps when reconstructing from stored
-// state. Not for business logic.
+// SetCreatedAt / SetUpdatedAt - used by persistence adapters to restore original timestamps
+// when reconstructing from a stored state.
 func (c *Credential) SetCreatedAt(t time.Time) { c.createdAt = t }
 func (c *Credential) SetUpdatedAt(t time.Time) { c.updatedAt = t }
 
@@ -70,7 +68,6 @@ func (c *Credential) Secret(key string) (string, bool) {
 }
 
 // SecretsAll returns a shallow copy of secrets map.
-// Use carefully: values are still strings, safe to copy.
 func (c *Credential) SecretsAll() map[string]string {
 	out := make(map[string]string, len(c.secrets))
 	for k, v := range c.secrets {
@@ -96,8 +93,6 @@ func (c *Credential) SetSecret(key, value string) error {
 }
 
 // DeleteSecret removes a secret value by key and bumps UpdatedAt if it existed.
-//
-// The operation is idempotent: deleting a missing key is a no-op.
 func (c *Credential) DeleteSecret(key string) error {
 	if key == "" {
 		return domain.ErrFieldEmpty

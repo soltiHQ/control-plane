@@ -3,7 +3,6 @@ package enum
 import "time"
 
 // SessionStatus describes the lifecycle state of an authenticated session.
-// Constants are ordered by display priority: active first, revoked last.
 type SessionStatus uint8
 
 const (

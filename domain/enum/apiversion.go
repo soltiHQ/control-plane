@@ -18,17 +18,11 @@ func (v APIVersion) String() string {
 	}
 }
 
-// APIVersionFromString parses a version string into APIVersion.
-func APIVersionFromString(s string) APIVersion {
-	switch s {
-	case "v1":
-		return APIVersionV1
-	default:
-		return APIVersionUnspecified
-	}
-}
-
-// APIVersionFromInt maps an integer (e.g. from proto) to APIVersion.
+// APIVersionFromInt maps the agent-reported integer API version to APIVersion.
+//
+//	1 → v1. Any other value (including 0) falls back to Unspecified.
+//
+// Wire source: api_version in solti.discover.v1 ("1 = v1") and solti.raft.v1.AgentMsg.
 func APIVersionFromInt(v int) APIVersion {
 	switch v {
 	case 1:

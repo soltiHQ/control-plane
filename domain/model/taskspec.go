@@ -14,69 +14,59 @@ var _ domain.Entity[*Spec] = (*Spec)(nil)
 // BackoffConfig holds backoff parameters for task restart delays.
 type BackoffConfig struct {
 	Jitter  enum.JitterStrategy
+	Factor  float64
 	FirstMs int64
 	MaxMs   int64
-	Factor  float64
 }
 
 // Spec represents a desired task specification managed by the control-plane.
 //
-// A Spec defines what task should run on which agents. It is the "desired state"
-// in the reconciliation model — the sync runner compares it against what agents actually have.
+// A Spec is the "desired state" in the reconciliation model: it defines what
+// task should run on which agents. The sync runner compares it against what the
+// agents actually have (via Rollout records) and converges them.
 //
 // # Versioning: two counters
 //
-// A Spec exposes two monotonic counters with different meanings:
-//
-//   - **Version** bumps on every `Upsert`, even if only metadata changed
-//     (rename, target-list edit, etc.). UI-facing "edits counter" useful
-//     for audit and for identifying which save the user is looking at.
-//   - **Generation** bumps only when runtime fields (those that end up in
-//     `SpecToProto` — slot, kind, timeout, restart, backoff, runnerLabels)
-//     change. Rollouts track `ObservedGeneration`; a re-create on the agent
-//     is triggered only when `ObservedGeneration != Generation`. This
-//     prevents pure metadata edits from churning live tasks on every agent.
+//   - Version bumps on every Upsert, even pure-metadata edits (rename,
+//     target-list change). It is the UI-facing "edits counter" — used for audit
+//     and as the optimistic-concurrency token (which save the user is on).
+//   - Generation bumps only when a runtime field changes (one that SpecToProto
+//     reads: slot, kind, timeout, restart/interval, backoff, runnerLabels).
+//     Rollouts track ObservedGeneration; a re-create on the agent fires only
+//     when ObservedGeneration != Generation. This stops pure-metadata edits from
+//     churning live tasks on every agent. See RuntimeEquals.
 //
 // # Soft delete
 //
-// `DeletionRequested` flips on `DELETE /specs/{id}`: the Spec record stays
-// around so the sync runner can honor rollout uninstalls (DeleteTask on each
-// agent) before the finalizer actually drops the Spec row. This mirrors
-// the k8s `deletionTimestamp` + finalizer pattern.
-//
-// The spec fields mirror the agent's CreateSpec format: slot, kind, timeout,
-// restart, backoff, admission, and runner labels.
+// DeletionRequested flips on delete: the record survives so the sync runner can
+// honor rollout uninstalls (DeleteTask on each agent) before the finalizer drops
+// the row — the k8s deletionTimestamp + finalizer pattern.
 type Spec struct {
-	// CP metadata
+	// CP-owned metadata: identity, versioning, targeting, timestamps.
 	id                string
 	name              string
-	version           int
-	generation        int
-	deletionRequested bool
-	targets           []string          // concrete agent IDs
+	version           int               // edits counter; bumps on every Upsert
+	generation        int               // runtime-change counter; drives re-create
+	deletionRequested bool              // soft-delete tombstone flag
+	targets           []string          // explicit target agent IDs
 	targetLabels      map[string]string // label selector for dynamic targeting
 	createdAt         time.Time
 	updatedAt         time.Time
 
-	// Spec (mirrors agent CreateSpec)
+	// Task definition: the fields that mirror the agent's CreateSpec and decide
+	// what actually runs. (Admission is intentionally absent — the CP always
+	// pins Replace on the wire; see internal/proxy/convert.go.)
 	//
-	// Admission is intentionally absent. The CP reconciles desired state and
-	// upgrades via ApplyTask, which force-replaces at the agent — so only
-	// Replace semantics ever apply (see internal/proxy/convert.go).
-	// DropIfRunning/Queue are direct-submitter policies that don't fit
-	// desired-state rollouts, so a per-spec value would be dead state.
-	//
-	// slot is immutable: set once in NewSpec, never changed. It is the task's
-	// identity/lane on the agent — a different slot is a new deployment, not
-	// an edit (there is deliberately no SetSlot). Changing it would orphan the
-	// task in the old slot, since ApplyTask supersedes only within a slot.
+	// slot is immutable: set once in NewSpec, never changed (there is no
+	// SetSlot). It is the task's identity/lane on the agent — a different slot is
+	// a new deployment, not an edit.
 	slot         string
 	kindType     enum.TaskKindType
-	kindConfig   map[string]any // e.g. {command, args, env, cwd, failOnNonZero} for subprocess
-	timeoutMs    int64
 	restartType  enum.RestartType
-	intervalMs   int64 // only for RestartAlways
+	timeoutMs    int64
+	intervalMs   int64 // only meaningful for RestartAlways
 	backoff      BackoffConfig
+	kindConfig   map[string]any // backend config; shape depends on kindType
 	runnerLabels map[string]string
 }
 
@@ -102,9 +92,8 @@ func NewSpec(id, name, slot string) (*Spec, error) {
 		targets:      nil,
 		targetLabels: make(map[string]string),
 		kindType:     enum.TaskKindSubprocess,
-		kindConfig:   make(map[string]any),
-		timeoutMs:    30000,
 		restartType:  enum.RestartNever,
+		timeoutMs:    30000,
 		intervalMs:   0,
 		backoff: BackoffConfig{
 			Jitter:  enum.JitterNone,
@@ -112,11 +101,10 @@ func NewSpec(id, name, slot string) (*Spec, error) {
 			MaxMs:   5000,
 			Factor:  2.0,
 		},
+		kindConfig:   make(map[string]any),
 		runnerLabels: make(map[string]string),
 	}, nil
 }
-
-// --- Getters ---
 
 func (ts *Spec) ID() string              { return ts.id }
 func (ts *Spec) Name() string            { return ts.name }
@@ -127,8 +115,7 @@ func (ts *Spec) DeletionRequested() bool { return ts.deletionRequested }
 func (ts *Spec) CreatedAt() time.Time    { return ts.createdAt }
 func (ts *Spec) UpdatedAt() time.Time    { return ts.updatedAt }
 
-// SetCreatedAt / SetUpdatedAt / SetVersion / SetGeneration — used by
-// persistence adapters to restore exact state on reconstruction.
+// SetCreatedAt / SetUpdatedAt / SetVersion / SetGeneration - used by persistence adapters to restore the exact state on reconstruction.
 func (ts *Spec) SetCreatedAt(t time.Time)      { ts.createdAt = t }
 func (ts *Spec) SetUpdatedAt(t time.Time)      { ts.updatedAt = t }
 func (ts *Spec) SetVersion(v int)              { ts.version = v }
@@ -149,7 +136,7 @@ func (ts *Spec) KindConfig() map[string]any {
 	return out
 }
 
-// Targets returns a copy of the target agent IDs.
+// Targets return a copy of the target agent IDs.
 func (ts *Spec) Targets() []string {
 	out := make([]string, len(ts.targets))
 	copy(out, ts.targets)
@@ -173,8 +160,6 @@ func (ts *Spec) RunnerLabels() map[string]string {
 	}
 	return out
 }
-
-// --- Setters ---
 
 func (ts *Spec) SetName(name string) {
 	if ts.name == name {

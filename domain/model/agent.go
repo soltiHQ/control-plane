@@ -17,10 +17,10 @@ var _ domain.Entity[*Agent] = (*Agent)(nil)
 //   - Metadata is agent-owned data reported by the agent (not modified).
 //   - Labels are control-plane owned annotations (operators/system), not reported by the agent.
 type Agent struct {
+	heartbeatInterval time.Duration
 	createdAt         time.Time
 	updatedAt         time.Time
 	lastSeenAt        time.Time
-	heartbeatInterval time.Duration
 	staleAt           time.Time
 
 	uptimeSeconds int64
@@ -64,12 +64,14 @@ func NewAgent(id, name, endpoint string) (*Agent, error) {
 	}, nil
 }
 
-// AgentParams is a transport-agnostic set of fields for constructing an Agent
-// from an external discovery payload (HTTP or gRPC).
+// AgentParams is set of fields for constructing an Agent from an external discovery payload (HTTP or gRPC).
 type AgentParams struct {
 	ID       string
 	Name     string
 	Endpoint string
+
+	UptimeSeconds      int64
+	HeartbeatIntervalS int
 
 	EndpointType int
 	APIVersion   int
@@ -78,16 +80,11 @@ type AgentParams struct {
 	Arch     string
 	Platform string
 
-	UptimeSeconds      int64
-	HeartbeatIntervalS int
-
 	Metadata     map[string]string
 	Capabilities []string
 }
 
-// NewAgentFrom constructs an Agent from transport-agnostic AgentParams.
-//
-// Performs a defensive copy of Metadata.
+// NewAgentFrom constructs an Agent from AgentParams.
 func NewAgentFrom(p AgentParams) (*Agent, error) {
 	if p.ID == "" {
 		return nil, domain.ErrEmptyID
@@ -98,13 +95,14 @@ func NewAgentFrom(p AgentParams) (*Agent, error) {
 		return nil, err
 	}
 
-	now := time.Now()
-	md := make(map[string]string, len(p.Metadata))
+	var (
+		now  = time.Now()
+		caps = make([]string, len(p.Capabilities))
+		md   = make(map[string]string, len(p.Metadata))
+	)
 	for k, v := range p.Metadata {
 		md[k] = v
 	}
-
-	caps := make([]string, len(p.Capabilities))
 	copy(caps, p.Capabilities)
 
 	return &Agent{
@@ -185,9 +183,7 @@ func (a *Agent) LastSeenAt() time.Time { return a.lastSeenAt }
 // HeartbeatInterval returns the agent-reported heartbeat interval.
 func (a *Agent) HeartbeatInterval() time.Duration { return a.heartbeatInterval }
 
-// MarkStatus transitions the agent's lifecycle status — a business mutation —
-// and bumps UpdatedAt. Use this for real status changes (e.g. the lifecycle
-// runner marking an agent Inactive/Disconnected).
+// MarkStatus transitions the agent's lifecycle status.
 func (a *Agent) MarkStatus(s enum.AgentStatus) {
 	if a.status == s {
 		return
@@ -196,37 +192,30 @@ func (a *Agent) MarkStatus(s enum.AgentStatus) {
 	a.updatedAt = time.Now()
 }
 
-// SetStatus restores the agent's status WITHOUT bumping UpdatedAt. It is a
-// persistence/reconstruction hook (Raft replay, storage load); for a business
-// status change use MarkStatus.
+// SetStatus restores the agent's status WITHOUT bumping UpdatedAt.
 func (a *Agent) SetStatus(s enum.AgentStatus) {
 	a.status = s
 }
 
 // SetHeartbeatInterval sets the agent's heartbeat interval.
-// Derived/sync field (agent-reported, recomputed each heartbeat): does NOT
-// bump UpdatedAt, to avoid churning it on every heartbeat.
 func (a *Agent) SetHeartbeatInterval(d time.Duration) { a.heartbeatInterval = d }
 
 // StaleAt returns the time by which the next heartbeat is expected.
-// Zero value means the agent has no computed staleness deadline.
 func (a *Agent) StaleAt() time.Time { return a.staleAt }
 
 // SetStaleAt sets the staleness deadline for the agent.
-// Derived field (computed from LastSeenAt + interval): does NOT bump UpdatedAt.
 func (a *Agent) SetStaleAt(t time.Time) { a.staleAt = t }
 
 // CreatedAt returns the creation timestamp.
 func (a *Agent) CreatedAt() time.Time { return a.createdAt }
 
-// SetCreatedAt overrides the creation timestamp (used to preserve the original value during sync).
+// SetCreatedAt overrides the creation timestamp.
 func (a *Agent) SetCreatedAt(t time.Time) { a.createdAt = t }
 
 // UpdatedAt returns the last modification timestamp.
 func (a *Agent) UpdatedAt() time.Time { return a.updatedAt }
 
-// SetUpdatedAt overrides the modification timestamp (used by persistence
-// adapters to restore exact state).
+// SetUpdatedAt overrides the modification timestamp.
 func (a *Agent) SetUpdatedAt(t time.Time) { a.updatedAt = t }
 
 // SetLastSeenAt / SetEndpointType / SetAPIVersion / SetOS / SetArch /
@@ -296,7 +285,6 @@ func (a *Agent) LabelsAll() map[string]string {
 }
 
 // LabelAdd sets a control-plane owned label on the agent.
-// No-op (no UpdatedAt bump) when the label already holds the same value.
 func (a *Agent) LabelAdd(key, value string) {
 	if existing, ok := a.labels[key]; ok && existing == value {
 		return
@@ -306,7 +294,6 @@ func (a *Agent) LabelAdd(key, value string) {
 }
 
 // LabelDelete removes a control-plane owned label from the agent.
-// Idempotent: deleting a missing key is a no-op (no UpdatedAt bump).
 func (a *Agent) LabelDelete(key string) {
 	if _, ok := a.labels[key]; !ok {
 		return

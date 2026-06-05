@@ -11,7 +11,6 @@ import (
 // AgentFilter provides predicate-based filtering for in-memory agent queries.
 //
 // Filters are composed by chaining builder methods. All predicates are ANDed together.
-// AgentFilter is mutable and not safe for concurrent use.
 type AgentFilter struct {
 	predicates []func(*model.Agent) bool
 }
@@ -95,7 +94,6 @@ func (f *AgentFilter) Matches(a *model.Agent) bool {
 // UserFilter provides predicate-based filtering for in-memory user queries.
 //
 // Filters are composed by chaining builder methods. All predicates are ANDed together.
-// UserFilter is mutable and not safe for concurrent use.
 type UserFilter struct {
 	predicates []func(*model.User) bool
 }
@@ -166,7 +164,6 @@ func (f *UserFilter) Query(q string) *UserFilter {
 // RoleFilter provides predicate-based filtering for in-memory role queries.
 //
 // Filters are composed by chaining builder methods. All predicates are ANDed together.
-// RoleFilter is mutable and not safe for concurrent use.
 type RoleFilter struct {
 	predicates []func(*model.Role) bool
 }
@@ -242,7 +239,6 @@ func (f *SpecFilter) Matches(ts *model.Spec) bool {
 // RolloutFilter provides predicate-based filtering for in-memory rollout queries.
 //
 // Filters are composed by chaining builder methods. All predicates are ANDed together.
-// RolloutFilter is mutable and not safe for concurrent use.
 type RolloutFilter struct {
 	predicates []func(*model.Rollout) bool
 }

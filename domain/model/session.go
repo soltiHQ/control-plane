@@ -11,12 +11,6 @@ import (
 var _ domain.Entity[*Session] = (*Session)(nil)
 
 // Session represents an authenticated session issued by the system.
-// It is created after successful authentication and is typically backed by a refresh token.
-//
-// Security notes:
-//   - Never store raw refresh tokens; store only a hash.
-//   - ExpiresAt controls session validity.
-//   - RevokedAt supports explicit invalidation (logout / compromise response).
 type Session struct {
 	createdAt time.Time
 	updatedAt time.Time
@@ -94,8 +88,8 @@ func (s *Session) CreatedAt() time.Time { return s.createdAt }
 // UpdatedAt returns the timestamp of the last modification.
 func (s *Session) UpdatedAt() time.Time { return s.updatedAt }
 
-// SetCreatedAt / SetUpdatedAt / SetRevokedAt — used by persistence adapters
-// to restore original timestamps when reconstructing from stored state.
+// SetCreatedAt / SetUpdatedAt / SetRevokedAt - used by persistence adapters
+// to restore original timestamps when reconstructing from a stored state.
 func (s *Session) SetCreatedAt(t time.Time) { s.createdAt = t }
 func (s *Session) SetUpdatedAt(t time.Time) { s.updatedAt = t }
 func (s *Session) SetRevokedAt(t time.Time) { s.revokedAt = t }
@@ -109,7 +103,6 @@ func (s *Session) Expired(at time.Time) bool {
 func (s *Session) Revoked() bool { return !s.revokedAt.IsZero() }
 
 // SetRefreshHash replaces the stored refresh hash.
-// Caller must provide hash bytes (raw refresh tokens must never be stored).
 func (s *Session) SetRefreshHash(hash []byte) error {
 	if len(hash) == 0 {
 		return domain.ErrFieldEmpty
@@ -130,13 +123,12 @@ func (s *Session) SetExpiresAt(expiresAt time.Time) error {
 	if s.expiresAt.Equal(expiresAt) {
 		return nil
 	}
-	s.expiresAt = expiresAt
 	s.updatedAt = time.Now()
+	s.expiresAt = expiresAt
 	return nil
 }
 
 // Revoke marks the session as revoked at the provided time.
-// It is idempotent.
 func (s *Session) Revoke(at time.Time) error {
 	if at.IsZero() {
 		return domain.ErrFieldEmpty
@@ -144,8 +136,8 @@ func (s *Session) Revoke(at time.Time) error {
 	if !s.revokedAt.IsZero() {
 		return nil
 	}
-	s.revokedAt = at
 	s.updatedAt = time.Now()
+	s.revokedAt = at
 	return nil
 }
 

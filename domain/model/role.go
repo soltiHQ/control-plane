@@ -10,12 +10,6 @@ import (
 var _ domain.Entity[*Role] = (*Role)(nil)
 
 // Role represents a named collection of permissions.
-//
-// Role is a core RBAC entity in the domain.
-// It groups a set of permissions and can be assigned to users to grant access to specific capabilities.
-//
-// Notes:
-//   - Permissions are unique within a role.
 type Role struct {
 	createdAt time.Time
 	updatedAt time.Time
@@ -57,8 +51,8 @@ func (r *Role) CreatedAt() time.Time { return r.createdAt }
 // UpdatedAt returns the timestamp of the last modification.
 func (r *Role) UpdatedAt() time.Time { return r.updatedAt }
 
-// SetCreatedAt / SetUpdatedAt — used by persistence adapters to restore
-// original timestamps when reconstructing from stored state.
+// SetCreatedAt / SetUpdatedAt - used by persistence adapters to restore original timestamps
+// when reconstructing from a stored state.
 func (r *Role) SetCreatedAt(t time.Time) { r.createdAt = t }
 func (r *Role) SetUpdatedAt(t time.Time) { r.updatedAt = t }
 
@@ -80,7 +74,6 @@ func (r *Role) PermissionHas(p enum.Permission) bool {
 }
 
 // PermissionAdd grants a permission to the role.
-// It is idempotent: adding an existing permission does nothing.
 func (r *Role) PermissionAdd(p enum.Permission) error {
 	if p == "" {
 		return domain.ErrFieldEmpty
@@ -95,7 +88,6 @@ func (r *Role) PermissionAdd(p enum.Permission) error {
 }
 
 // PermissionDelete revokes a permission from the role.
-// If permission does not exist, nothing happens.
 func (r *Role) PermissionDelete(p enum.Permission) {
 	for i, x := range r.permissions {
 		if x == p {
@@ -107,7 +99,6 @@ func (r *Role) PermissionDelete(p enum.Permission) {
 }
 
 // Rename changes the role name.
-// It is idempotent: renaming to the same value does nothing.
 func (r *Role) Rename(name string) error {
 	if name == "" {
 		return domain.ErrEmptyName

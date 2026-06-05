@@ -30,7 +30,7 @@ const (
 	RoleAgentReaderID = "032"
 )
 
-// BuiltinRoles contains all roles the control-plane seeds on first startup.
+// BuiltinRoles contains all roles the control-plane seeds on the first startup.
 var BuiltinRoles = []BuiltinRole{
 	// Global
 	{RoleAdminID, "Admin", All},
