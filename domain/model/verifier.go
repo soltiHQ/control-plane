@@ -102,10 +102,22 @@ func (v *Verifier) DataSet(key, value string) error {
 	return nil
 }
 
-// DataDelete removes a verifier data key and updates UpdatedAt.
-func (v *Verifier) DataDelete(key string) {
+// DataDelete removes a verifier data key and bumps UpdatedAt if it existed.
+//
+// The operation is idempotent: deleting a missing key is a no-op.
+func (v *Verifier) DataDelete(key string) error {
+	if key == "" {
+		return domain.ErrFieldEmpty
+	}
+	if v.data == nil {
+		return nil
+	}
+	if _, ok := v.data[key]; !ok {
+		return nil
+	}
 	delete(v.data, key)
 	v.updatedAt = time.Now()
+	return nil
 }
 
 // Clone creates a deep copy of the verifier entity.

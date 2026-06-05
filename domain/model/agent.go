@@ -185,13 +185,24 @@ func (a *Agent) LastSeenAt() time.Time { return a.lastSeenAt }
 // HeartbeatInterval returns the agent-reported heartbeat interval.
 func (a *Agent) HeartbeatInterval() time.Duration { return a.heartbeatInterval }
 
-// SetStatus updates the agent's lifecycle status.
-func (a *Agent) SetStatus(s enum.AgentStatus) {
+// MarkStatus transitions the agent's lifecycle status — a business mutation —
+// and bumps UpdatedAt. Use this for real status changes (e.g. the lifecycle
+// runner marking an agent Inactive/Disconnected).
+func (a *Agent) MarkStatus(s enum.AgentStatus) {
 	a.status = s
 	a.updatedAt = time.Now()
 }
 
+// SetStatus restores the agent's status WITHOUT bumping UpdatedAt. It is a
+// persistence/reconstruction hook (Raft replay, storage load); for a business
+// status change use MarkStatus.
+func (a *Agent) SetStatus(s enum.AgentStatus) {
+	a.status = s
+}
+
 // SetHeartbeatInterval sets the agent's heartbeat interval.
+// Derived/sync field (agent-reported, recomputed each heartbeat): does NOT
+// bump UpdatedAt, to avoid churning it on every heartbeat.
 func (a *Agent) SetHeartbeatInterval(d time.Duration) { a.heartbeatInterval = d }
 
 // StaleAt returns the time by which the next heartbeat is expected.
@@ -199,6 +210,7 @@ func (a *Agent) SetHeartbeatInterval(d time.Duration) { a.heartbeatInterval = d 
 func (a *Agent) StaleAt() time.Time { return a.staleAt }
 
 // SetStaleAt sets the staleness deadline for the agent.
+// Derived field (computed from LastSeenAt + interval): does NOT bump UpdatedAt.
 func (a *Agent) SetStaleAt(t time.Time) { a.staleAt = t }
 
 // CreatedAt returns the creation timestamp.

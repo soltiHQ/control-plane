@@ -168,7 +168,7 @@ func (r *Runner) reconcile(ctx context.Context, now time.Time, a *model.Agent) {
 
 	case silence > hb*time.Duration(r.cfg.DisconnectMultiplier):
 		if a.Status() != enum.AgentStatusDisconnected {
-			a.SetStatus(enum.AgentStatusDisconnected)
+			a.MarkStatus(enum.AgentStatusDisconnected)
 
 			if err := r.store.UpsertAgent(ctx, a); err != nil {
 				r.logger.Warn().Err(err).Str("agent_id", a.ID()).Msg("reconcile: upsert disconnected failed")
@@ -184,7 +184,7 @@ func (r *Runner) reconcile(ctx context.Context, now time.Time, a *model.Agent) {
 
 	case silence > hb*time.Duration(r.cfg.InactiveMultiplier):
 		if a.Status() != enum.AgentStatusInactive {
-			a.SetStatus(enum.AgentStatusInactive)
+			a.MarkStatus(enum.AgentStatusInactive)
 
 			if err := r.store.UpsertAgent(ctx, a); err != nil {
 				r.logger.Warn().Err(err).Str("agent_id", a.ID()).Msg("reconcile: upsert inactive failed")

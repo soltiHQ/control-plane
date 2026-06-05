@@ -136,14 +136,11 @@ func (u *User) RoleIDsAll() []string {
 }
 
 // RolesIDsNew replaces the user's full set of role IDs.
+//
+// Input is de-duplicated and empty IDs are dropped (the "unique set"
+// invariant). No-op when the resulting set equals the current one — UpdatedAt
+// is bumped only on a real change.
 func (u *User) RolesIDsNew(roles []string) {
-	u.updatedAt = time.Now()
-
-	if len(roles) == 0 {
-		u.roleIDs = nil
-		return
-	}
-
 	var (
 		out  = make([]string, 0, len(roles))
 		seen = make(map[string]struct{}, len(roles))
@@ -158,7 +155,26 @@ func (u *User) RolesIDsNew(roles []string) {
 		seen[id] = struct{}{}
 		out = append(out, id)
 	}
+
+	// Both sets are de-duplicated, so equal length + full overlap == equal set.
+	if len(out) == len(u.roleIDs) {
+		same := true
+		for _, id := range u.roleIDs {
+			if _, ok := seen[id]; !ok {
+				same = false
+				break
+			}
+		}
+		if same {
+			return
+		}
+	}
+
+	if len(out) == 0 {
+		out = nil
+	}
 	u.roleIDs = out
+	u.updatedAt = time.Now()
 }
 
 // PermissionsAll returns a copy of permissions granted directly to the user.
@@ -168,15 +184,12 @@ func (u *User) PermissionsAll() []enum.Permission {
 	return out
 }
 
-// PermissionsNew update full list of user's permissions.
+// PermissionsNew replaces the user's full set of directly-granted permissions.
+//
+// Input is de-duplicated and empty values are dropped (the "unique set"
+// invariant). No-op when the resulting set equals the current one — UpdatedAt
+// is bumped only on a real change.
 func (u *User) PermissionsNew(perms []string) {
-	u.updatedAt = time.Now()
-
-	if len(perms) == 0 {
-		u.permissions = nil
-		return
-	}
-
 	var (
 		out  = make([]enum.Permission, 0, len(perms))
 		seen = make(map[enum.Permission]struct{}, len(perms))
@@ -193,7 +206,26 @@ func (u *User) PermissionsNew(perms []string) {
 		seen[perm] = struct{}{}
 		out = append(out, perm)
 	}
+
+	// Both sets are de-duplicated, so equal length + full overlap == equal set.
+	if len(out) == len(u.permissions) {
+		same := true
+		for _, p := range u.permissions {
+			if _, ok := seen[p]; !ok {
+				same = false
+				break
+			}
+		}
+		if same {
+			return
+		}
+	}
+
+	if len(out) == 0 {
+		out = nil
+	}
 	u.permissions = out
+	u.updatedAt = time.Now()
 }
 
 // RoleHas reports whether the user has the given role ID assigned.
