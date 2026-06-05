@@ -26,9 +26,8 @@ var _ domain.Entity[*Rollout] = (*Rollout)(nil)
 //     actually drive a re-create on the next tick.
 //
 // `ActualTaskID` is the TaskId returned by the agent from the last
-// successful SubmitTask. Empty means "the agent has no task for this
-// rollout yet". Required for re-create (DeleteTask then SubmitTask) and
-// for uninstall paths.
+// successful ApplyTask. Empty means "the agent has no task for this
+// rollout yet". Required for the uninstall path (DeleteTask on removal).
 type Rollout struct {
 	createdAt    time.Time
 	updatedAt    time.Time
@@ -103,7 +102,7 @@ func (ss *Rollout) Status() enum.SyncStatus { return ss.status }
 func (ss *Rollout) Intent() enum.RolloutIntent { return ss.intent }
 
 // ActualTaskID returns the TaskId the agent reported on the last
-// successful SubmitTask, or empty if nothing is installed.
+// successful ApplyTask, or empty if nothing is installed.
 func (ss *Rollout) ActualTaskID() string { return ss.actualTaskID }
 
 // LastPushedAt returns when the spec was last pushed to the agent.
@@ -140,8 +139,7 @@ func (ss *Rollout) SetIntent(intent enum.RolloutIntent) {
 }
 
 // SetActualTaskID records the TaskId the agent returned for this rollout.
-// Pass an empty string to clear (used between DeleteTask and SubmitTask
-// during an update so a crash mid-flight resumes cleanly).
+// Pass an empty string to clear (e.g. when the rollout has no live task).
 func (ss *Rollout) SetActualTaskID(taskID string) {
 	ss.actualTaskID = taskID
 	ss.updatedAt = time.Now()

@@ -47,23 +47,19 @@ func (p *grpcProxyV1) ListTasks(ctx context.Context, f TaskFilter) (*proxyv1.Lis
 	}, nil
 }
 
-func (p *grpcProxyV1) SubmitTask(ctx context.Context, sub TaskSubmission) (string, error) {
+func (p *grpcProxyV1) ApplyTask(ctx context.Context, sub TaskSubmission) (string, error) {
 	if sub.Spec == nil {
-		return "", fmt.Errorf("%w: nil spec", ErrSubmitTask)
+		return "", fmt.Errorf("%w: nil spec", ErrApplyTask)
 	}
 	client := taskv1.NewTaskServiceClient(p.conn)
 
-	resp, err := client.SubmitTask(ctx, &taskv1.SubmitTaskRequest{Spec: sub.Spec})
+	resp, err := client.ApplyTask(ctx, &taskv1.ApplyTaskRequest{Spec: sub.Spec})
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrSubmitTask, err)
+		return "", fmt.Errorf("%w: %v", ErrApplyTask, err)
 	}
 	taskID := resp.GetTaskId()
 	if taskID == "" {
-		// SDK contract: on success the response must carry a non-empty
-		// task id. Empty means the agent accepted the request but gave
-		// us nothing to cancel/delete later — treat as a soft failure
-		// so the sync runner retries instead of pretending it's synced.
-		return "", fmt.Errorf("%w: agent returned empty task id", ErrSubmitTask)
+		return "", fmt.Errorf("%w: agent returned empty task id", ErrApplyTask)
 	}
 	return taskID, nil
 }

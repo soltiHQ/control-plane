@@ -146,8 +146,13 @@ func (a *API) specUpsert(w http.ResponseWriter, r *http.Request, mode httpctx.Re
 		if in.Name != "" {
 			x.SetName(in.Name)
 		}
-		if in.Slot != "" {
-			x.SetSlot(in.Slot)
+		// Slot is immutable after create — it is the task's identity/lane on
+		// the agent, and ApplyTask supersedes only within a slot, so changing
+		// it would orphan the old task. A different slot is a new spec, not an
+		// edit. Echoing the same slot is fine; a different value is rejected.
+		if in.Slot != "" && in.Slot != x.Slot() {
+			response.BadRequest(w, r, mode)
+			return
 		}
 		ts = x
 	default:

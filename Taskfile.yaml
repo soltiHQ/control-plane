@@ -21,7 +21,7 @@ tasks:
     cmds:
       - task: helpers:proto/vendor
         vars:
-          proto_ref: "v0.0.1"
+          proto_ref: "v0.0.2"
           MAPPINGS: |
             solti/discover api/proto/solti/discover
             solti/task api/proto/solti/task

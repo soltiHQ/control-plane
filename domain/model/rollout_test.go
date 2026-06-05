@@ -7,7 +7,7 @@ import (
 )
 
 // NewRollout starts as Pending with Intent=Install. This matches the
-// first-deploy path: sync runner sees intent=Install and calls SubmitTask.
+// first-deploy path: sync runner sees intent=Install and calls ApplyTask.
 func TestNewRolloutDefaultsToInstallIntent(t *testing.T) {
 	r, err := NewRollout("spec-1", "agent-1", 3)
 	if err != nil {
@@ -66,9 +66,8 @@ func TestMarkFailedPreservesIntent(t *testing.T) {
 	}
 }
 
-// SetActualTaskID is used during update both to record a fresh TaskId
-// (after SubmitTask succeeds) and to clear it (between DeleteTask and
-// SubmitTask for crash-safety).
+// SetActualTaskID records a fresh TaskId (after ApplyTask succeeds) and
+// clears it (empty string) when the rollout has no live task.
 func TestSetActualTaskIDSetAndClear(t *testing.T) {
 	r, _ := NewRollout("spec-1", "agent-1", 1)
 	r.SetActualTaskID("sub-slot-42")

@@ -77,15 +77,21 @@ func doDelete(ctx context.Context, client httpClient, url string) error {
 	}
 }
 
-// doProtoJSONPostDecoding posts `in` as canonical proto-JSON and decodes
-// the response body into `out`. Use when the response carries
-// meaningful data — e.g. SubmitTaskResponse.task_id.
+// doProtoJSONPutDecoding PUTs `in` as canonical proto-JSON and decodes the
+// response body into `out`. Used for idempotent apply/upsert calls such as
+// ApplyTask, where the response carries meaningful data (e.g. the TaskId).
+func doProtoJSONPutDecoding(ctx context.Context, client httpClient, url string, in, out proto.Message) error {
+	return doProtoJSONWriteDecoding(ctx, client, http.MethodPut, url, in, out)
+}
+
+// doProtoJSONWriteDecoding sends `in` as canonical proto-JSON with the given
+// method and decodes the response body into `out`.
 //
 // On a non-2xx response, `formatUnexpectedStatus` pulls the SDK error
 // envelope into the returned error so callers see the agent's reason
 // verbatim. Any 2xx body is decoded with `DiscardUnknown: true` so the
 // agent can add fields without breaking older control planes.
-func doProtoJSONPostDecoding(ctx context.Context, client httpClient, url string, in, out proto.Message) error {
+func doProtoJSONWriteDecoding(ctx context.Context, client httpClient, method, url string, in, out proto.Message) error {
 	payload, err := protojson.MarshalOptions{
 		UseProtoNames:   false,
 		EmitUnpopulated: false,
@@ -94,7 +100,7 @@ func doProtoJSONPostDecoding(ctx context.Context, client httpClient, url string,
 		return fmt.Errorf("%w: %v", ErrCreateRequest, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewReader(payload))
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrCreateRequest, err)
 	}

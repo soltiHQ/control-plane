@@ -110,7 +110,6 @@ func TestRuntimeEqualsDetectsEveryRuntimeField(t *testing.T) {
 		name   string
 		mutate func(*Spec)
 	}{
-		{"slot", func(s *Spec) { s.SetSlot("slot-2") }},
 		{"kindType", func(s *Spec) { s.SetKindType(enum.TaskKindWasm) }},
 		{"kindConfig value", func(s *Spec) { s.SetKindConfig(map[string]any{"command": "echo"}) }},
 		{"timeoutMs", func(s *Spec) { s.SetTimeoutMs(60_000) }},
@@ -134,6 +133,17 @@ func TestRuntimeEqualsDetectsEveryRuntimeField(t *testing.T) {
 				t.Errorf("%s change not detected by RuntimeEquals", tc.name)
 			}
 		})
+	}
+}
+
+// slot is immutable (no setter), so it can't be covered by the mutator
+// table above — build two specs with different slots directly. RuntimeEquals
+// must still treat slot as a runtime field.
+func TestRuntimeEqualsDetectsSlot(t *testing.T) {
+	a, _ := NewSpec("sp-1", "demo", "slot-1")
+	b, _ := NewSpec("sp-1", "demo", "slot-2")
+	if a.RuntimeEquals(b) {
+		t.Error("slot difference not detected by RuntimeEquals")
 	}
 }
 

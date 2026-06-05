@@ -37,18 +37,18 @@ type SpecExport struct {
 
 // AgentProxy is the interface for outbound communication with an agent.
 //
-// Methods beyond ListTasks/SubmitTask require the agent to declare the
+// Methods beyond ListTasks/ApplyTask require the agent to declare the
 // corresponding capability ("task_runs", "task_delete"). Callers must
 // check agent.HasCapability before invoking these.
 type AgentProxy interface {
 	ListTasks(ctx context.Context, filter TaskFilter) (*proxyv1.ListTasksResponse, error)
 
-	// SubmitTask pushes a spec to the agent and returns the TaskId the
-	// agent assigned to the new execution. The returned id is what CP
-	// must remember so it can later DeleteTask / GetTask for this exact
-	// run — critical for update (DeleteTask old + SubmitTask new) and
-	// uninstall (DeleteTask on target removal) paths.
-	SubmitTask(ctx context.Context, sub TaskSubmission) (taskID string, err error)
+	// ApplyTask applies a spec to its slot: the agent supersedes whatever
+	// runs there, or installs if the slot is empty, and returns the TaskId
+	// running after apply. Atomic and force-replacing — the control-plane's
+	// upgrade primitive, so a new spec version wins the slot deterministically
+	// without a separate DeleteTask and its teardown race.
+	ApplyTask(ctx context.Context, sub TaskSubmission) (taskID string, err error)
 
 	// GetTask returns a single task by ID.
 	GetTask(ctx context.Context, taskID string) (*proxyv1.GetTaskResponse, error)

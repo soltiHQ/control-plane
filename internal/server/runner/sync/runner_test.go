@@ -22,9 +22,9 @@ import (
 // fakeProxy records every call. Tests configure return values up front
 // and assert on the recorded call sequence afterwards.
 type fakeProxy struct {
-	submits      []*taskv1.CreateSpec
-	submitResp   []string // pop from front, one per Submit call
-	submitErr    []error
+	applies      []*taskv1.CreateSpec
+	applyResp    []string // pop from front, one per Apply call
+	applyErr     []error
 	deletes      []string
 	deleteErr    []error
 	gets         []string
@@ -37,17 +37,17 @@ func (f *fakeProxy) ListTasks(ctx context.Context, _ proxy.TaskFilter) (*proxyv1
 	return &proxyv1.ListTasksResponse{}, nil
 }
 
-func (f *fakeProxy) SubmitTask(ctx context.Context, sub proxy.TaskSubmission) (string, error) {
-	f.submits = append(f.submits, sub.Spec)
+func (f *fakeProxy) ApplyTask(ctx context.Context, sub proxy.TaskSubmission) (string, error) {
+	f.applies = append(f.applies, sub.Spec)
 	var id string
 	var err error
-	if len(f.submitResp) > 0 {
-		id = f.submitResp[0]
-		f.submitResp = f.submitResp[1:]
+	if len(f.applyResp) > 0 {
+		id = f.applyResp[0]
+		f.applyResp = f.applyResp[1:]
 	}
-	if len(f.submitErr) > 0 {
-		err = f.submitErr[0]
-		f.submitErr = f.submitErr[1:]
+	if len(f.applyErr) > 0 {
+		err = f.applyErr[0]
+		f.applyErr = f.applyErr[1:]
 	}
 	return id, err
 }
@@ -130,9 +130,9 @@ func seedSpecAndAgent(t *testing.T, store *inmemory.Store, specID, agentID strin
 
 // --- tests ---
 
-// Install: SubmitTask once, save TaskId, move to Synced.
+// Install: ApplyTask once, save TaskId, move to Synced.
 func TestReconcileInstallSavesTaskIDAndSyncs(t *testing.T) {
-	fp := &fakeProxy{submitResp: []string{"sub-slot-1"}}
+	fp := &fakeProxy{applyResp: []string{"sub-slot-1"}}
 	r, store, _ := newFakeRunner(t, fp)
 	_ = seedSpecAndAgent(t, store, "sp-1", "agent-a")
 
@@ -142,8 +142,8 @@ func TestReconcileInstallSavesTaskIDAndSyncs(t *testing.T) {
 
 	r.reconcile(context.Background(), ro.ID())
 
-	if len(fp.submits) != 1 {
-		t.Fatalf("expected 1 SubmitTask call, got %d", len(fp.submits))
+	if len(fp.applies) != 1 {
+		t.Fatalf("expected 1 ApplyTask call, got %d", len(fp.applies))
 	}
 	if len(fp.deletes) != 0 {
 		t.Errorf("install must not delete; got %d", len(fp.deletes))
@@ -161,9 +161,9 @@ func TestReconcileInstallSavesTaskIDAndSyncs(t *testing.T) {
 	}
 }
 
-// Update: DeleteTask(old), SubmitTask(new), save new TaskId. Order matters.
-func TestReconcileUpdateReCreatesAndSwapsTaskID(t *testing.T) {
-	fp := &fakeProxy{submitResp: []string{"sub-slot-2"}}
+// Update: ApplyTask supersedes in a single call (no DeleteTask), save new TaskId.
+func TestReconcileUpdateAppliesAndSwapsTaskID(t *testing.T) {
+	fp := &fakeProxy{applyResp: []string{"sub-slot-2"}}
 	r, store, _ := newFakeRunner(t, fp)
 	_ = seedSpecAndAgent(t, store, "sp-1", "agent-a")
 
@@ -176,11 +176,11 @@ func TestReconcileUpdateReCreatesAndSwapsTaskID(t *testing.T) {
 
 	r.reconcile(context.Background(), ro.ID())
 
-	if len(fp.deletes) != 1 || fp.deletes[0] != "sub-slot-old" {
-		t.Errorf("expected DeleteTask(sub-slot-old), got %v", fp.deletes)
+	if len(fp.deletes) != 0 {
+		t.Errorf("update must not delete (ApplyTask supersedes); got %v", fp.deletes)
 	}
-	if len(fp.submits) != 1 {
-		t.Errorf("expected 1 SubmitTask, got %d", len(fp.submits))
+	if len(fp.applies) != 1 {
+		t.Errorf("expected 1 ApplyTask, got %d", len(fp.applies))
 	}
 
 	after, _ := store.GetRollout(context.Background(), ro.ID())
@@ -192,13 +192,14 @@ func TestReconcileUpdateReCreatesAndSwapsTaskID(t *testing.T) {
 	}
 }
 
-// Update: DeleteTask succeeds but SubmitTask fails → ActualTaskID must
-// have been cleared before SubmitTask so the next tick resumes cleanly.
-func TestReconcileUpdateClearsActualTaskIDBeforeSubmitOnSubmitFailure(t *testing.T) {
-	submitErr := errors.New("agent down")
+// Update where ApplyTask fails → mark Failed, keep the old ActualTaskID
+// (ApplyTask is atomic: a failed apply leaves the running task untouched),
+// and keep Intent=Update so the next tick retries.
+func TestReconcileUpdateApplyFailureKeepsOldTaskID(t *testing.T) {
+	applyErr := errors.New("agent down")
 	fp := &fakeProxy{
-		submitResp: []string{""},
-		submitErr:  []error{submitErr},
+		applyResp: []string{""},
+		applyErr:  []error{applyErr},
 	}
 	r, store, _ := newFakeRunner(t, fp)
 	_ = seedSpecAndAgent(t, store, "sp-1", "agent-a")
@@ -212,9 +213,12 @@ func TestReconcileUpdateClearsActualTaskIDBeforeSubmitOnSubmitFailure(t *testing
 
 	r.reconcile(context.Background(), ro.ID())
 
+	if len(fp.deletes) != 0 {
+		t.Errorf("apply path must not delete; got %v", fp.deletes)
+	}
 	after, _ := store.GetRollout(context.Background(), ro.ID())
-	if after.ActualTaskID() != "" {
-		t.Errorf("ActualTaskID must be cleared after successful DeleteTask (got %q)", after.ActualTaskID())
+	if after.ActualTaskID() != "sub-slot-old" {
+		t.Errorf("ActualTaskID must be untouched on apply failure (got %q)", after.ActualTaskID())
 	}
 	if after.Status() != enum.SyncStatusFailed {
 		t.Errorf("status: got %s, want failed", after.Status())
@@ -225,12 +229,11 @@ func TestReconcileUpdateClearsActualTaskIDBeforeSubmitOnSubmitFailure(t *testing
 	}
 }
 
-// Update where DeleteTask returns NotFound → treat as success, proceed
-// to SubmitTask. Agents reboot and lose state; CP shouldn't wedge.
-func TestReconcileUpdateTreatsDeleteTaskNotFoundAsSuccess(t *testing.T) {
+// Uninstall where DeleteTask returns NotFound → treat as success, drop the
+// rollout. Agents reboot and lose state; CP shouldn't wedge.
+func TestReconcileUninstallTreatsDeleteTaskNotFoundAsSuccess(t *testing.T) {
 	fp := &fakeProxy{
-		submitResp: []string{"sub-slot-new"},
-		deleteErr:  []error{errors.New("proxy: unexpected status: 404 TaskNotFound: not found")},
+		deleteErr: []error{errors.New("proxy: unexpected status: 404 TaskNotFound: not found")},
 	}
 	r, store, _ := newFakeRunner(t, fp)
 	_ = seedSpecAndAgent(t, store, "sp-1", "agent-a")
@@ -238,18 +241,17 @@ func TestReconcileUpdateTreatsDeleteTaskNotFoundAsSuccess(t *testing.T) {
 	ro, _ := model.NewRollout("sp-1", "agent-a", 1)
 	ro.SetActualTaskID("sub-slot-old")
 	ro.MarkSynced(1)
-	ro.SetIntent(enum.RolloutIntentUpdate)
+	ro.SetIntent(enum.RolloutIntentUninstall)
 	ro.MarkPending(2)
 	_ = store.UpsertRollout(context.Background(), ro)
 
 	r.reconcile(context.Background(), ro.ID())
 
-	after, _ := store.GetRollout(context.Background(), ro.ID())
-	if after.Status() != enum.SyncStatusSynced {
-		t.Errorf("status: got %s, want synced (NotFound should be treated as success)", after.Status())
+	if len(fp.deletes) != 1 {
+		t.Errorf("expected 1 DeleteTask, got %v", fp.deletes)
 	}
-	if after.ActualTaskID() != "sub-slot-new" {
-		t.Errorf("actualTaskID: got %q, want sub-slot-new", after.ActualTaskID())
+	if _, err := store.GetRollout(context.Background(), ro.ID()); err == nil {
+		t.Error("rollout row should be dropped even when DeleteTask returns NotFound")
 	}
 }
 
@@ -271,8 +273,8 @@ func TestReconcileUninstallDeletesTaskAndRolloutRow(t *testing.T) {
 	if len(fp.deletes) != 1 || fp.deletes[0] != "sub-slot-bye" {
 		t.Errorf("expected DeleteTask(sub-slot-bye), got %v", fp.deletes)
 	}
-	if len(fp.submits) != 0 {
-		t.Errorf("uninstall must not submit; got %d", len(fp.submits))
+	if len(fp.applies) != 0 {
+		t.Errorf("uninstall must not apply; got %d", len(fp.applies))
 	}
 	if _, err := store.GetRollout(context.Background(), ro.ID()); err == nil {
 		t.Error("rollout row should be gone after uninstall")

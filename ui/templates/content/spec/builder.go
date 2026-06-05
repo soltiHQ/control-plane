@@ -28,11 +28,11 @@ var presets = []backoffPreset{
 // object from builderSeed). When non-null the builder pre-populates
 // itself from it, turning the create form into an edit form.
 //
-// Admission is NOT exposed as a field: the control-plane always sends
-// `admission=Replace` on the wire (SpecToProto), so the UI doesn't
-// need to confuse users with a knob they can't actually change.
+// Admission is NOT exposed as a field: the CP reconciles desired state and
+// upgrades via ApplyTask, which force-replaces at the agent — the only policy
+// that converges safely. There is no user knob.
 //
-// Subprocess supports two modes, reflecting `solti.v1.SubprocessTask.mode`:
+// Subprocess supports two modes, reflecting `solti.task.v1.SubprocessTask.mode`:
 //
 //   - command — a direct binary to exec with args.
 //   - script — a body of text (bash/python/node/custom interpreter)
@@ -165,7 +165,7 @@ func builderXData(agentsEndpoint, seedJSON string) string {
     submitting: false,
     agents_endpoint: '%s',
 
-    // Canonical proto3-JSON for solti.v1.TaskKind payloads.
+    // Canonical proto3-JSON for solti.task.v1.TaskKind payloads.
     //
     // SubprocessTask: oneof {command|script} is inlined (NO "mode"
     // wrapper); env is repeated KeyValue ([{key, value}]), not a map.

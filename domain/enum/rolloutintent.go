@@ -19,12 +19,12 @@ const (
 
 	// RolloutIntentInstall means the spec is present on this target
 	// conceptually, but no Task has ever been installed on the agent yet
-	// (ActualTaskID is empty). SubmitTask once, record the TaskId.
+	// (ActualTaskID is empty). ApplyTask once, record the TaskId.
 	RolloutIntentInstall
 
 	// RolloutIntentUpdate means an earlier version of the spec is live on
 	// the agent (ActualTaskID set) and the desired generation is newer.
-	// The sync runner deletes the old task, then submits the new one.
+	// The sync runner ApplyTasks the new spec, which supersedes the old.
 	RolloutIntentUpdate
 
 	// RolloutIntentUninstall means the rollout must go away from the

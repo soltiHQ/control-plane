@@ -15,8 +15,7 @@ type Task struct {
 	ExitCode        *int32 `json:"exit_code,omitempty"`
 }
 
-// ListTasksResponse is an offset-paginated list of agent tasks (limit/offset/total),
-// mirroring the agent's task API.
+// ListTasksResponse is an offset-paginated list of agent tasks (limit/offset/total), mirroring the agent's task API.
 type ListTasksResponse struct {
 	Tasks []Task `json:"tasks"`
 	Total int    `json:"total"`

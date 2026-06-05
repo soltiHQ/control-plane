@@ -190,8 +190,8 @@ templ BuilderPage(initial *restv1.Spec) {
 						</div>
 					</template>
 
-					<!-- Admission is not user-visible: the control-plane always
-					     sends admission=Replace when pushing specs to agents. -->
+					<!-- Admission is not user-visible: the CP reconciles desired
+					     state and always pins admission=Replace on the wire. -->
 				}
 
 				<!-- Backoff -->

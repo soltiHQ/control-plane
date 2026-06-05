@@ -13,15 +13,14 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// httpProxyV1.SubmitTask must return the TaskId from SubmitTaskResponse.
+// httpProxyV1.ApplyTask must return the TaskId from ApplyTaskResponse.
 // Without it CP cannot later DeleteTask or GetTaskStatus for this exact
-// run, which breaks both the update (delete-then-submit) and uninstall
-// (delete-on-target-removal) flows.
-func TestHttpProxyV1_SubmitTask_ReturnsTaskID(t *testing.T) {
+// run, which breaks the uninstall (delete-on-target-removal) flow.
+func TestHttpProxyV1_ApplyTask_ReturnsTaskID(t *testing.T) {
 	want := "sub-my-slot-42"
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/api/v1/tasks") {
+		if r.Method != http.MethodPut || !strings.HasSuffix(r.URL.Path, "/api/v1/tasks") {
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 			http.NotFound(w, r)
 			return
@@ -29,23 +28,23 @@ func TestHttpProxyV1_SubmitTask_ReturnsTaskID(t *testing.T) {
 		// Drain so we don't trip test server's internal assertions.
 		_, _ = io.Copy(io.Discard, r.Body)
 
-		body, err := protojson.Marshal(&taskv1.SubmitTaskResponse{TaskId: want})
+		body, err := protojson.Marshal(&taskv1.ApplyTaskResponse{TaskId: want})
 		if err != nil {
 			t.Fatalf("marshal response: %v", err)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
+		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(body)
 	}))
 	defer srv.Close()
 
 	p := &httpProxyV1{endpoint: srv.URL, client: srv.Client()}
 
-	got, err := p.SubmitTask(context.Background(), TaskSubmission{
+	got, err := p.ApplyTask(context.Background(), TaskSubmission{
 		Spec: &taskv1.CreateSpec{Slot: "my-slot"},
 	})
 	if err != nil {
-		t.Fatalf("SubmitTask: %v", err)
+		t.Fatalf("ApplyTask: %v", err)
 	}
 	if got != want {
 		t.Errorf("task id: got %q, want %q", got, want)
@@ -53,25 +52,25 @@ func TestHttpProxyV1_SubmitTask_ReturnsTaskID(t *testing.T) {
 }
 
 // An empty task_id is a protocol violation — the agent accepted the
-// submission but gave us no handle to manage the new run. Fail loudly
-// rather than pretend-it-is-synced.
-func TestHttpProxyV1_SubmitTask_RejectsEmptyTaskID(t *testing.T) {
+// apply but gave us no handle to manage the run. Fail loudly rather
+// than pretend-it-is-synced.
+func TestHttpProxyV1_ApplyTask_RejectsEmptyTaskID(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := protojson.Marshal(&taskv1.SubmitTaskResponse{TaskId: ""})
+		body, _ := protojson.Marshal(&taskv1.ApplyTaskResponse{TaskId: ""})
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
+		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(body)
 	}))
 	defer srv.Close()
 
 	p := &httpProxyV1{endpoint: srv.URL, client: srv.Client()}
 
-	_, err := p.SubmitTask(context.Background(), TaskSubmission{Spec: &taskv1.CreateSpec{Slot: "s"}})
+	_, err := p.ApplyTask(context.Background(), TaskSubmission{Spec: &taskv1.CreateSpec{Slot: "s"}})
 	if err == nil {
 		t.Fatal("expected error for empty task_id")
 	}
-	if !errors.Is(err, ErrSubmitTask) {
-		t.Errorf("error should wrap ErrSubmitTask, got %v", err)
+	if !errors.Is(err, ErrApplyTask) {
+		t.Errorf("error should wrap ErrApplyTask, got %v", err)
 	}
 	if !strings.Contains(err.Error(), "empty task id") {
 		t.Errorf("error should mention empty task id, got %q", err.Error())
@@ -82,7 +81,7 @@ func TestHttpProxyV1_SubmitTask_RejectsEmptyTaskID(t *testing.T) {
 // error surfaced by the proxy must contain both the label and message.
 // Verified earlier via formatUnexpectedStatus; this test keeps the
 // end-to-end wiring covered when the decoding helper is on the hot path.
-func TestHttpProxyV1_SubmitTask_Surfaces400Envelope(t *testing.T) {
+func TestHttpProxyV1_ApplyTask_Surfaces400Envelope(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
@@ -92,7 +91,7 @@ func TestHttpProxyV1_SubmitTask_Surfaces400Envelope(t *testing.T) {
 
 	p := &httpProxyV1{endpoint: srv.URL, client: srv.Client()}
 
-	_, err := p.SubmitTask(context.Background(), TaskSubmission{Spec: &taskv1.CreateSpec{Slot: ""}})
+	_, err := p.ApplyTask(context.Background(), TaskSubmission{Spec: &taskv1.CreateSpec{Slot: ""}})
 	if err == nil {
 		t.Fatal("expected error for 400")
 	}

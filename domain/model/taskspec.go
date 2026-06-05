@@ -59,9 +59,16 @@ type Spec struct {
 
 	// Spec (mirrors agent CreateSpec)
 	//
-	// Admission is intentionally absent: CP-managed agents always get
-	// `admission=Replace` on the wire (see internal/proxy/convert.go),
-	// so storing a per-spec value would be dead state.
+	// Admission is intentionally absent. The CP reconciles desired state and
+	// upgrades via ApplyTask, which force-replaces at the agent — so only
+	// Replace semantics ever apply (see internal/proxy/convert.go).
+	// DropIfRunning/Queue are direct-submitter policies that don't fit
+	// desired-state rollouts, so a per-spec value would be dead state.
+	//
+	// slot is immutable: set once in NewSpec, never changed. It is the task's
+	// identity/lane on the agent — a different slot is a new deployment, not
+	// an edit (there is deliberately no SetSlot). Changing it would orphan the
+	// task in the old slot, since ApplyTask supersedes only within a slot.
 	slot         string
 	kindType     enum.TaskKindType
 	kindConfig   map[string]any // e.g. {command, args, env, cwd, failOnNonZero} for subprocess
@@ -170,11 +177,6 @@ func (ts *Spec) RunnerLabels() map[string]string {
 
 func (ts *Spec) SetName(name string) {
 	ts.name = name
-	ts.updatedAt = time.Now()
-}
-
-func (ts *Spec) SetSlot(slot string) {
-	ts.slot = slot
 	ts.updatedAt = time.Now()
 }
 

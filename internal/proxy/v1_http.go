@@ -69,25 +69,23 @@ func (p *httpProxyV1) ListTasks(ctx context.Context, f TaskFilter) (*proxyv1.Lis
 	}, nil
 }
 
-func (p *httpProxyV1) SubmitTask(ctx context.Context, sub TaskSubmission) (string, error) {
+func (p *httpProxyV1) ApplyTask(ctx context.Context, sub TaskSubmission) (string, error) {
 	if sub.Spec == nil {
-		return "", fmt.Errorf("%w: nil spec", ErrSubmitTask)
+		return "", fmt.Errorf("%w: nil spec", ErrApplyTask)
 	}
 	u, err := url.Parse(p.endpoint + v1PathTasks)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrBadEndpointURL, err)
 	}
 
-	// SubmitTaskResponse carries the TaskId the agent assigned. Without
-	// it CP cannot later DeleteTask / GetTaskStatus for this exact run,
-	// which breaks the update and uninstall flows.
-	var out taskv1.SubmitTaskResponse
-	if err := doProtoJSONPostDecoding(ctx, p.client, u.String(), &taskv1.SubmitTaskRequest{Spec: sub.Spec}, &out); err != nil {
+	// ApplyTaskResponse carries the TaskId now running in the slot.
+	var out taskv1.ApplyTaskResponse
+	if err := doProtoJSONPutDecoding(ctx, p.client, u.String(), &taskv1.ApplyTaskRequest{Spec: sub.Spec}, &out); err != nil {
 		return "", err
 	}
 	taskID := out.GetTaskId()
 	if taskID == "" {
-		return "", fmt.Errorf("%w: agent returned empty task id", ErrSubmitTask)
+		return "", fmt.Errorf("%w: agent returned empty task id", ErrApplyTask)
 	}
 	return taskID, nil
 }

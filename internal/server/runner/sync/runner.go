@@ -4,17 +4,18 @@
 //  1. Lists actionable rollouts (status Pending, Drift, or retry-eligible Failed).
 //
 //  2. Dispatches each by its [enum.RolloutIntent]:
-//     - Install    → SubmitTask(spec)                               → save TaskId
-//     - Update     → DeleteTask(oldID); SubmitTask(spec)            → save new TaskId
-//     - Uninstall  → DeleteTask(actualTaskID) (or noop if empty)    → drop rollout
+//     - Install    → ApplyTask(spec)                               → save TaskId
+//     - Update     → ApplyTask(spec)                               → save new TaskId
+//     - Uninstall  → DeleteTask(actualTaskID) (or noop if empty)   → drop rollout
 //     - Noop       → skip (safety; filter shouldn't hand these out)
 //
 //  3. After processing rollouts, the finalizer pass actually removes any
 //     `Spec.DeletionRequested=true` spec whose last rollout has drained.
 //
-// The runner is crash-safe across the Update re-create: once DeleteTask
-// succeeds we clear ActualTaskID in storage immediately, so a process
-// restart before SubmitTask resumes as a clean Install-like flow.
+// Install and Update share one path: ApplyTask atomically supersedes-or-installs
+// the slot on the agent, so there is no DeleteTask + SubmitTask window. A crash
+// mid-apply is safe — the next tick simply re-applies (idempotent: the slot
+// converges to the spec).
 package sync
 
 import (
@@ -247,41 +248,29 @@ func (r *Runner) reconcileUninstall(ctx context.Context, ss *model.Rollout) {
 	r.hub.Notify(htmx.SpecUpdate)
 }
 
-// reconcileSubmit applies the current spec to the agent. Shared between
-// Install and Update intents: the only difference is whether a prior
-// task exists and therefore must be torn down first.
+// reconcileSubmit applies the current spec to the agent via ApplyTask,
+// shared between Install and Update intents.
 //
-// Between DeleteTask and SubmitTask we persist ActualTaskID="" so that
-// a runner crash resumes cleanly on the next tick — the rollout falls
-// into the "no prior task" branch and proceeds straight to SubmitTask.
+// ApplyTask atomically supersedes-or-installs the slot, so there is no
+// DeleteTask + SubmitTask sequence and no teardown race: a new spec version
+// deterministically wins the slot. A crash mid-apply is safe — the next tick
+// re-applies (idempotent).
 func (r *Runner) reconcileSubmit(ctx context.Context, ss *model.Rollout) {
 	ts, ap, protoSpec, ok := r.prepareSubmit(ctx, ss)
 	if !ok {
 		return
 	}
 
-	isUpdate := ss.ActualTaskID() != ""
-	if isUpdate {
-		if err := ap.DeleteTask(ctx, ss.ActualTaskID()); err != nil && !isNotFound(err) {
-			r.markFailed(ctx, ss, "delete old task: "+err.Error())
-			return
-		}
-		ss.SetActualTaskID("")
-		if err := r.store.UpsertRollout(ctx, ss); err != nil {
-			r.logger.Error().Err(err).Str("rid", ss.ID()).Msg("reconcile/update: persist cleared task id failed")
-			return
-		}
-	}
-
-	newID, err := ap.SubmitTask(ctx, proxy.TaskSubmission{Spec: protoSpec})
+	wasInstalled := ss.ActualTaskID() != ""
+	newID, err := ap.ApplyTask(ctx, proxy.TaskSubmission{Spec: protoSpec})
 	if err != nil {
-		r.markFailed(ctx, ss, "submit task: "+err.Error())
+		r.markFailed(ctx, ss, "apply task: "+err.Error())
 		return
 	}
 
 	r.markSynced(ctx, ss.ID(), ts.Generation(), newID)
 	verb := "installed"
-	if isUpdate {
+	if wasInstalled {
 		verb = "updated"
 	}
 	r.logger.Info().

@@ -23,7 +23,7 @@ import (
 //   - ts == nil
 //   - unknown TaskKindType
 //   - the UI-supplied KindConfig cannot be round-tripped into proto
-//     (invalid field names or value types — see solti.v1.TaskKind).
+//     (invalid field names or value types — see solti.task.v1.TaskKind).
 func SpecToProto(ts *model.Spec) (*taskv1.CreateSpec, error) {
 	if ts == nil {
 		return nil, fmt.Errorf("proxy: nil spec")
@@ -46,12 +46,11 @@ func SpecToProto(ts *model.Spec) (*taskv1.CreateSpec, error) {
 			MaxMs:   clampU64(b.MaxMs),
 			Factor:  b.Factor,
 		},
-		// Admission is CP-managed. The control-plane serialises per
-		// (spec, agent) through the sync runner and performs explicit
-		// re-create (DeleteTask then SubmitTask) on update. Replace is
-		// the only admission that makes the "old task not fully
-		// torn-down yet" race safe. We overwrite whatever the spec
-		// carries — the UI doesn't even expose the field anymore.
+		// Admission is CP-managed. The sync runner upgrades via ApplyTask,
+		// which force-replaces at the agent regardless of this field — so a
+		// new spec version always wins the slot. We still pin Replace here so
+		// the value matches the effective behaviour (e.g. in the wire preview);
+		// the UI doesn't expose the field.
 		Admission: taskv1.AdmissionStrategy_ADMISSION_STRATEGY_REPLACE,
 	}
 
