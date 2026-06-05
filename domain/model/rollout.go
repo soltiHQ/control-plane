@@ -134,6 +134,9 @@ func (ss *Rollout) SetUpdatedAt(t time.Time) { ss.updatedAt = t }
 // take. Callers should typically also call [MarkPending] to reset
 // attempts/error and signal that the runner should pick this rollout up.
 func (ss *Rollout) SetIntent(intent enum.RolloutIntent) {
+	if ss.intent == intent {
+		return
+	}
 	ss.intent = intent
 	ss.updatedAt = time.Now()
 }
@@ -141,6 +144,9 @@ func (ss *Rollout) SetIntent(intent enum.RolloutIntent) {
 // SetActualTaskID records the TaskId the agent returned for this rollout.
 // Pass an empty string to clear (e.g. when the rollout has no live task).
 func (ss *Rollout) SetActualTaskID(taskID string) {
+	if ss.actualTaskID == taskID {
+		return
+	}
 	ss.actualTaskID = taskID
 	ss.updatedAt = time.Now()
 }

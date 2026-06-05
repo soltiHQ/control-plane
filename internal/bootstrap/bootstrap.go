@@ -53,8 +53,8 @@ func seedAdmin(ctx context.Context, logger zerolog.Logger, userSVC *user.Service
 	if err != nil {
 		return err
 	}
-	u.EmailAdd("admin@solit.local")
-	u.NameAdd("admin")
+	u.SetEmail("admin@solit.local")
+	u.SetName("admin")
 
 	if err = u.RoleAdd(enum.RoleAdminID); err != nil {
 		return err

@@ -242,8 +242,8 @@ func TestService_Login_Success_CreatesSession_IssuesToken(t *testing.T) {
 	rbac := &fakeRBAC{perms: []enum.Permission{"perm:a", "perm:b"}}
 
 	u := mustUser(t, "u1", "subj-1", false)
-	u.NameAdd("User One")
-	u.EmailAdd("u1@example.com")
+	u.SetName("User One")
+	u.SetEmail("u1@example.com")
 	mustUpsertUser(t, ctx, st, u)
 	cred := mustUpsertPasswordCred(t, ctx, st, "cred-1", u.ID(), "pw")
 

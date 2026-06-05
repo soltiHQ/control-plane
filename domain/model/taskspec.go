@@ -2,6 +2,7 @@ package model
 
 import (
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/soltiHQ/control-plane/domain"
@@ -176,16 +177,25 @@ func (ts *Spec) RunnerLabels() map[string]string {
 // --- Setters ---
 
 func (ts *Spec) SetName(name string) {
+	if ts.name == name {
+		return
+	}
 	ts.name = name
 	ts.updatedAt = time.Now()
 }
 
 func (ts *Spec) SetKindType(kt enum.TaskKindType) {
+	if ts.kindType == kt {
+		return
+	}
 	ts.kindType = kt
 	ts.updatedAt = time.Now()
 }
 
 func (ts *Spec) SetKindConfig(cfg map[string]any) {
+	if anyMapEqual(ts.kindConfig, cfg) {
+		return
+	}
 	cp := make(map[string]any, len(cfg))
 	for k, v := range cfg {
 		cp[k] = v
@@ -195,26 +205,41 @@ func (ts *Spec) SetKindConfig(cfg map[string]any) {
 }
 
 func (ts *Spec) SetTimeoutMs(ms int64) {
+	if ts.timeoutMs == ms {
+		return
+	}
 	ts.timeoutMs = ms
 	ts.updatedAt = time.Now()
 }
 
 func (ts *Spec) SetRestartType(rt enum.RestartType) {
+	if ts.restartType == rt {
+		return
+	}
 	ts.restartType = rt
 	ts.updatedAt = time.Now()
 }
 
 func (ts *Spec) SetIntervalMs(ms int64) {
+	if ts.intervalMs == ms {
+		return
+	}
 	ts.intervalMs = ms
 	ts.updatedAt = time.Now()
 }
 
 func (ts *Spec) SetBackoff(b BackoffConfig) {
+	if ts.backoff == b {
+		return
+	}
 	ts.backoff = b
 	ts.updatedAt = time.Now()
 }
 
 func (ts *Spec) SetTargets(targets []string) {
+	if slices.Equal(ts.targets, targets) {
+		return
+	}
 	cp := make([]string, len(targets))
 	copy(cp, targets)
 	ts.targets = cp
@@ -222,6 +247,9 @@ func (ts *Spec) SetTargets(targets []string) {
 }
 
 func (ts *Spec) SetTargetLabels(labels map[string]string) {
+	if stringMapEqual(ts.targetLabels, labels) {
+		return
+	}
 	cp := make(map[string]string, len(labels))
 	for k, v := range labels {
 		cp[k] = v
@@ -231,6 +259,9 @@ func (ts *Spec) SetTargetLabels(labels map[string]string) {
 }
 
 func (ts *Spec) SetRunnerLabels(labels map[string]string) {
+	if stringMapEqual(ts.runnerLabels, labels) {
+		return
+	}
 	cp := make(map[string]string, len(labels))
 	for k, v := range labels {
 		cp[k] = v
@@ -261,6 +292,9 @@ func (ts *Spec) BumpGeneration() {
 // until every Rollout for it is uninstalled; the sync runner's finalizer
 // pass then calls `DeleteSpec` for real.
 func (ts *Spec) MarkForDeletion() {
+	if ts.deletionRequested {
+		return
+	}
 	ts.deletionRequested = true
 	ts.updatedAt = time.Now()
 }

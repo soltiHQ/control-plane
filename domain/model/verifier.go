@@ -97,6 +97,9 @@ func (v *Verifier) DataSet(key, value string) error {
 	if v.data == nil {
 		v.data = make(map[string]string)
 	}
+	if existing, ok := v.data[key]; ok && existing == value {
+		return nil
+	}
 	v.data[key] = value
 	v.updatedAt = time.Now()
 	return nil

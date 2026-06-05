@@ -83,8 +83,8 @@ func (u *User) UpdatedAt() time.Time { return u.updatedAt }
 func (u *User) SetCreatedAt(t time.Time) { u.createdAt = t }
 func (u *User) SetUpdatedAt(t time.Time) { u.updatedAt = t }
 
-// EmailAdd updates the user's email.
-func (u *User) EmailAdd(email string) {
+// SetEmail updates the user's email.
+func (u *User) SetEmail(email string) {
 	if u.email == email {
 		return
 	}
@@ -92,8 +92,8 @@ func (u *User) EmailAdd(email string) {
 	u.updatedAt = time.Now()
 }
 
-// NameAdd updates the user's display name.
-func (u *User) NameAdd(name string) {
+// SetName updates the user's display name.
+func (u *User) SetName(name string) {
 	if u.name == name {
 		return
 	}
@@ -101,8 +101,8 @@ func (u *User) NameAdd(name string) {
 	u.updatedAt = time.Now()
 }
 
-// SubjectAdd updates the user's subject.
-func (u *User) SubjectAdd(subject string) {
+// SetSubject updates the user's subject.
+func (u *User) SetSubject(subject string) {
 	if u.subject == subject {
 		return
 	}
@@ -135,12 +135,12 @@ func (u *User) RoleIDsAll() []string {
 	return out
 }
 
-// RolesIDsNew replaces the user's full set of role IDs.
+// SetRoleIDs replaces the user's full set of role IDs.
 //
 // Input is de-duplicated and empty IDs are dropped (the "unique set"
 // invariant). No-op when the resulting set equals the current one — UpdatedAt
 // is bumped only on a real change.
-func (u *User) RolesIDsNew(roles []string) {
+func (u *User) SetRoleIDs(roles []string) {
 	var (
 		out  = make([]string, 0, len(roles))
 		seen = make(map[string]struct{}, len(roles))
@@ -184,12 +184,12 @@ func (u *User) PermissionsAll() []enum.Permission {
 	return out
 }
 
-// PermissionsNew replaces the user's full set of directly-granted permissions.
+// SetPermissions replaces the user's full set of directly-granted permissions.
 //
 // Input is de-duplicated and empty values are dropped (the "unique set"
 // invariant). No-op when the resulting set equals the current one — UpdatedAt
 // is bumped only on a real change.
-func (u *User) PermissionsNew(perms []string) {
+func (u *User) SetPermissions(perms []string) {
 	var (
 		out  = make([]enum.Permission, 0, len(perms))
 		seen = make(map[enum.Permission]struct{}, len(perms))

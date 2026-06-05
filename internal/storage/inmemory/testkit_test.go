@@ -40,8 +40,8 @@ func mkUser(t *testing.T, id, subject string) *model.User {
 	requireNoErr(t, err)
 	requireNotNil(t, u)
 
-	u.EmailAdd(subject + "@example.com")
-	u.NameAdd("User " + id)
+	u.SetEmail(subject + "@example.com")
+	u.SetName("User " + id)
 
 	return u
 }

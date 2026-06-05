@@ -82,8 +82,8 @@ func TestUserFilter_Matches_AllPredicatesANDed(t *testing.T) {
 	t.Parallel()
 
 	u := mkUser(t, "u1", "sub-1")
-	u.EmailAdd("sub-1@example.com")
-	u.NameAdd("User 1")
+	u.SetEmail("sub-1@example.com")
+	u.SetName("User 1")
 	userAddRole(t, u, "r-admin")
 	userAddPerm(t, u, enum.UsersGet)
 

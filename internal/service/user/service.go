@@ -133,14 +133,14 @@ func (s *Service) Upsert(ctx context.Context, u *model.User) error {
 	if subject == "" {
 		return domain.ErrInvalidSubject
 	}
-	u.SubjectAdd(subject)
-	u.NameAdd(strings.TrimSpace(u.Name()))
+	u.SetSubject(subject)
+	u.SetName(strings.TrimSpace(u.Name()))
 
 	email := strings.TrimSpace(strings.ToLower(u.Email()))
 	if email != "" && !isValidEmail(email) {
 		return domain.ErrInvalidEmail
 	}
-	u.EmailAdd(email)
+	u.SetEmail(email)
 
 	err := s.store.WithTx(ctx, func(tx storage.Storage) error {
 		if existing, err := tx.GetUserBySubject(ctx, subject); err == nil && existing.ID() != u.ID() {

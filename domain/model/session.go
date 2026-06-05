@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"time"
 
 	"github.com/soltiHQ/control-plane/domain"
@@ -113,6 +114,9 @@ func (s *Session) SetRefreshHash(hash []byte) error {
 	if len(hash) == 0 {
 		return domain.ErrFieldEmpty
 	}
+	if bytes.Equal(s.refreshHash, hash) {
+		return nil
+	}
 	s.refreshHash = append(s.refreshHash[:0], hash...)
 	s.updatedAt = time.Now()
 	return nil
@@ -122,6 +126,9 @@ func (s *Session) SetRefreshHash(hash []byte) error {
 func (s *Session) SetExpiresAt(expiresAt time.Time) error {
 	if expiresAt.IsZero() {
 		return domain.ErrFieldEmpty
+	}
+	if s.expiresAt.Equal(expiresAt) {
+		return nil
 	}
 	s.expiresAt = expiresAt
 	s.updatedAt = time.Now()

@@ -64,8 +64,8 @@ func TestAgent_ProtoRoundtrip(t *testing.T) {
 
 func TestUser_ProtoRoundtrip(t *testing.T) {
 	u, _ := model.NewUser("u1", "subject@x")
-	u.EmailAdd("a@b.c")
-	u.NameAdd("Alice")
+	u.SetEmail("a@b.c")
+	u.SetName("Alice")
 	_ = u.RoleAdd("role-a")
 	_ = u.PermissionAdd(enum.Permission("specs:get"))
 	u.SetCreatedAt(nowTruncated())

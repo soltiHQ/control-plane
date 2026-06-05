@@ -60,8 +60,8 @@ func populateStore(t *testing.T, store *inmemory.Store) populated {
 	if err != nil {
 		t.Fatal(err)
 	}
-	u.NameAdd("Alice")
-	u.EmailAdd("a@example.com")
+	u.SetName("Alice")
+	u.SetEmail("a@example.com")
 	if err := store.UpsertUser(ctx, u); err != nil {
 		t.Fatal(err)
 	}

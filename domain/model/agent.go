@@ -167,9 +167,9 @@ func (a *Agent) Capabilities() []string {
 }
 
 // HasCapability checks whether the agent declares a specific capability.
-func (a *Agent) HasCapability(cap string) bool {
+func (a *Agent) HasCapability(capability string) bool {
 	for _, c := range a.capabilities {
-		if c == cap {
+		if c == capability {
 			return true
 		}
 	}
@@ -189,6 +189,9 @@ func (a *Agent) HeartbeatInterval() time.Duration { return a.heartbeatInterval }
 // and bumps UpdatedAt. Use this for real status changes (e.g. the lifecycle
 // runner marking an agent Inactive/Disconnected).
 func (a *Agent) MarkStatus(s enum.AgentStatus) {
+	if a.status == s {
+		return
+	}
 	a.status = s
 	a.updatedAt = time.Now()
 }
@@ -293,13 +296,21 @@ func (a *Agent) LabelsAll() map[string]string {
 }
 
 // LabelAdd sets a control-plane owned label on the agent.
+// No-op (no UpdatedAt bump) when the label already holds the same value.
 func (a *Agent) LabelAdd(key, value string) {
+	if existing, ok := a.labels[key]; ok && existing == value {
+		return
+	}
 	a.labels[key] = value
 	a.updatedAt = time.Now()
 }
 
 // LabelDelete removes a control-plane owned label from the agent.
+// Idempotent: deleting a missing key is a no-op (no UpdatedAt bump).
 func (a *Agent) LabelDelete(key string) {
+	if _, ok := a.labels[key]; !ok {
+		return
+	}
 	delete(a.labels, key)
 	a.updatedAt = time.Now()
 }

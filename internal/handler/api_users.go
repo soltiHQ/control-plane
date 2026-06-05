@@ -206,19 +206,19 @@ func (a *API) userUpsert(w http.ResponseWriter, r *http.Request, mode httpctx.Re
 	}
 
 	if in.Name != "" {
-		u.NameAdd(in.Name)
+		u.SetName(in.Name)
 	}
 	if in.Email != "" {
-		u.EmailAdd(in.Email)
+		u.SetEmail(in.Email)
 	}
 	if in.Subject != "" {
-		u.SubjectAdd(in.Subject)
+		u.SetSubject(in.Subject)
 	}
 	if len(in.RoleIDs) > 0 {
-		u.RolesIDsNew(in.RoleIDs)
+		u.SetRoleIDs(in.RoleIDs)
 	}
 	if len(in.Permissions) > 0 {
-		u.PermissionsNew(in.Permissions)
+		u.SetPermissions(in.Permissions)
 	}
 	if err = a.userSVC.Upsert(r.Context(), u); err != nil {
 		switch {

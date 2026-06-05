@@ -87,6 +87,9 @@ func (c *Credential) SetSecret(key, value string) error {
 	if c.secrets == nil {
 		c.secrets = make(map[string]string)
 	}
+	if existing, ok := c.secrets[key]; ok && existing == value {
+		return nil
+	}
 	c.secrets[key] = value
 	c.updatedAt = time.Now()
 	return nil

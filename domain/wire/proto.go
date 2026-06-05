@@ -141,9 +141,9 @@ func UserFromProto(p *raftv1.UserMsg) (*model.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	u.SubjectAdd(p.GetSubject())
-	u.EmailAdd(p.GetEmail())
-	u.NameAdd(p.GetName())
+	u.SetSubject(p.GetSubject())
+	u.SetEmail(p.GetEmail())
+	u.SetName(p.GetName())
 	if p.GetDisabled() {
 		u.Disable()
 	}
@@ -153,6 +153,9 @@ func UserFromProto(p *raftv1.UserMsg) (*model.User, error) {
 	for _, perm := range p.GetPermissions() {
 		_ = u.PermissionAdd(enum.Permission(perm))
 	}
+	// Timestamp restores MUST stay last: the business setters above (SetEmail,
+	// RoleAdd, PermissionAdd, …) bump UpdatedAt; SetUpdatedAt then overwrites it
+	// with the persisted value. Reordering would leak a fresh timestamp on replay.
 	u.SetCreatedAt(timeFromUnixNano(p.GetCreatedAtNs()))
 	u.SetUpdatedAt(timeFromUnixNano(p.GetUpdatedAtNs()))
 	return u, nil
