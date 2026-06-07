@@ -9,8 +9,6 @@ import (
 	"github.com/soltiHQ/control-plane/internal/transportctx"
 )
 
-const metadataKeyRequestID = "x-request-id"
-
 // UnaryRequestID returns a unary server interceptor that ensures every request has a unique ID.
 func UnaryRequestID() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
@@ -27,7 +25,7 @@ func ensureRequestID(ctx context.Context) context.Context {
 	}
 
 	ctx = transportctx.WithRequestID(ctx, rid)
-	_ = grpc.SetHeader(ctx, metadata.Pairs(metadataKeyRequestID, rid))
+	_ = grpc.SetHeader(ctx, metadata.Pairs(transportctx.DefaultRequestIDHeader, rid))
 	return ctx
 }
 
@@ -36,7 +34,7 @@ func extractRequestID(ctx context.Context) string {
 	if !ok {
 		return ""
 	}
-	vals := md.Get(metadataKeyRequestID)
+	vals := md.Get(transportctx.DefaultRequestIDHeader)
 	if len(vals) == 0 {
 		return ""
 	}

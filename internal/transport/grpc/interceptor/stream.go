@@ -74,6 +74,9 @@ func StreamLogger(logger zerolog.Logger) grpc.StreamServerInterceptor {
 		if rid, ok := transportctx.RequestID(ss.Context()); ok {
 			evt = evt.Str("request_id", rid)
 		}
+		if reason := transportctx.TryError(ss.Context()); reason != "" {
+			evt = evt.Str("error", reason)
+		}
 		if err != nil {
 			st, _ := status.FromError(err)
 			evt.Str("code", st.Code().String()).Err(err).Msg("grpc stream")

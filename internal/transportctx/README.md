@@ -1,8 +1,8 @@
 # internal/transportctx
 
-Transport-agnostic context values are shared across HTTP and gRPC layers.
+Transport context values are shared across HTTP and gRPC layers.
   
-The package owns three typed context keys — **Identity**, **RequestID**, and **ErrorSlot** — and provides getters/setters for each.
+The package owns three typed context keys - **Identity**, **RequestID**, and **ErrorSlot** - and provides getters/setters for each.
 Because the keys are unexported structs, no other package can collide with them.
 
 ## What goes into context
@@ -13,11 +13,16 @@ Because the keys are unexported structs, no other package can collide with them.
 | `*errorHolder` (slot) | RequestID middleware / interceptor (`WithErrorSlot`) | Logger middleware / interceptor (`TryError`) |
 
 ### Error slot
-A mutable `errorHolder` pointer stored in context so that error response helpers can write a reason **after** the logger middleware has already captured the context.
+A mutable `errorHolder` stored in context, error response helpers can write a reason **after** the logger has already captured the context. 
+The reason is held in an `atomic.Pointer[string]` and the handler-side writing and the later logger-side reading are race-free.
 
-- **Init**: `WithErrorSlot(ctx)` — called by RequestID middleware/interceptor before handler runs.
-- **Write**: `SetError(ctx, msg)` — called by `response.*` (HTTP) and `status.*` (gRPC) helpers. No-op if slot was not initialised.
-- **Read**: `TryError(ctx)` — called by Logger middleware/interceptor to append `"error"` field to the log line.
+- **Init**: `WithErrorSlot(ctx)` - installed by the **RequestID** middleware/interceptor (HTTP and gRPC, unary and stream).
+- **Write**: `SetError(ctx, msg)` - called by `response.*` (HTTP) and `status.*` (gRPC) helpers. No-op if the slot was not initialized.
+- **Read**: `TryError(ctx)` - called by the Logger middleware/interceptor to append the `"error"` field to the log line.
+
+> **Ordering invariant.** Context values propagate only **downward**, so the slot must be installed by the **outermost** request-scoped layer (RequestID); that is why RequestID owns it, not Logger. 
+> Every writer (handlers, response/status helpers) and the reader (Logger) sit inside RequestID and therefore share the same slot. 
+> If a route is wired without RequestID, `SetError` silently no-ops.
 
 ## Request lifecycle
 

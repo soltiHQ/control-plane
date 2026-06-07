@@ -16,7 +16,6 @@ func Logger(logger zerolog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			r = r.WithContext(transportctx.WithErrorSlot(r.Context()))
 			var (
 				m   = httpsnoop.CaptureMetrics(next, w, r)
 				evt = logger.Info()
