@@ -6,9 +6,7 @@ import (
 	"github.com/soltiHQ/control-plane/internal/transportctx"
 )
 
-// RequestID attaches a unique request ID to the request context and installs
-// the error slot. As the outermost request-scoped middleware it owns both, so
-// inner layers (handlers, response helpers) and the logger share the same slot.
+// RequestID attaches a unique request ID to the request context and installs the error slot.
 func RequestID() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

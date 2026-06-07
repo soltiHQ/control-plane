@@ -69,6 +69,9 @@ func (c Config) Validate() error {
 	if err := c.Auth.Validate(); err != nil {
 		return fmt.Errorf("config.auth: %w", err)
 	}
+	if err := c.CORS.Validate(); err != nil {
+		return fmt.Errorf("config.cors: %w", err)
+	}
 	return nil
 }
 

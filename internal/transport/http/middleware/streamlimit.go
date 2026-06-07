@@ -8,13 +8,8 @@ import (
 )
 
 // StreamLimiter caps the number of concurrent long-lived streams per IP.
-// Unlike the failure-based [ratelimit.Limiter] it counts in-flight
-// connections, not error rate — appropriate for SSE/streaming endpoints
-// where a single client legitimately holds the connection open.
-//
-// Stateless in the sense of error attribution: a normal disconnect frees
-// the slot. The limiter is process-local; a multi-replica deployment
-// limits per-IP-per-replica.
+// Unlike the failure-based [ratelimit.Limiter], it counts in-flight connections,
+// not the error rate - appropriate for SSE/streaming endpoints where a single client legitimately holds the connection open.
 type StreamLimiter struct {
 	max int
 
@@ -22,8 +17,7 @@ type StreamLimiter struct {
 	counts map[string]int
 }
 
-// NewStreamLimiter builds a limiter with the given per-IP cap. max <= 0
-// disables limiting (always Acquire returns true).
+// NewStreamLimiter builds a limiter with the given per-IP cap. max <= 0 disables limiting (always Acquire returns true).
 func NewStreamLimiter(max int) *StreamLimiter {
 	return &StreamLimiter{
 		max:    max,
@@ -61,11 +55,7 @@ func (l *StreamLimiter) Release(ip string) {
 }
 
 // StreamLimit wraps a streaming handler with a per-IP concurrency cap.
-// Use on long-lived endpoints (SSE log tail, watches) — for short
-// request/response RPCs the failure-based [RateLimit] middleware fits better.
-//
-// Rejected requests get 429. The slot is released as soon as the handler
-// returns (deferred), so transient connections free their slot promptly.
+// Use on long-lived endpoints (SSE log tail, watches) - for short request/response RPCs the failure-based [RateLimit] middleware fits better.
 func StreamLimit(limiter *StreamLimiter) func(http.Handler) http.Handler {
 	if limiter == nil {
 		return func(next http.Handler) http.Handler { return next }

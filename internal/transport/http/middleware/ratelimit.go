@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/felixge/httpsnoop"
+
 	"github.com/soltiHQ/control-plane/internal/auth"
 	"github.com/soltiHQ/control-plane/internal/auth/ratelimit"
 )
@@ -30,35 +32,12 @@ func RateLimit(limiter *ratelimit.Limiter) func(http.Handler) http.Handler {
 				return
 			}
 
-			rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
-			next.ServeHTTP(rec, r)
-
-			if rec.status >= 400 {
+			m := httpsnoop.CaptureMetrics(next, w, r)
+			if m.Code >= 400 {
 				limiter.RecordFailure(key, time.Now())
 			} else {
 				limiter.Reset(key)
 			}
 		})
-	}
-}
-
-// statusRecorder captures the status code, so RateLimit can decide whether to count the response as a failure.
-type statusRecorder struct {
-	http.ResponseWriter
-	status int
-}
-
-func (s *statusRecorder) WriteHeader(code int) {
-	s.status = code
-	s.ResponseWriter.WriteHeader(code)
-}
-
-// Flush forwards to the underlying writer when it implements http.Flusher.
-// Required for SSE / chunked responses — without it the assertion
-// `w.(http.Flusher)` in the handler returns false and frames buffer
-// indefinitely.
-func (s *statusRecorder) Flush() {
-	if f, ok := s.ResponseWriter.(http.Flusher); ok {
-		f.Flush()
 	}
 }

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,6 +27,21 @@ type CORSConfig struct {
 	// MaxAge is how long the browser caches preflight results.
 	// Defaults to 12 hours.
 	MaxAge time.Duration `yaml:"max_age"`
+}
+
+// Validate rejects unsafe CORS combinations.
+//
+// Wildcard origin ("*") with AllowCredentials is forbidden.
+func (c CORSConfig) Validate() error {
+	if !c.AllowCredentials {
+		return nil
+	}
+	for _, o := range c.AllowOrigins {
+		if o == "*" {
+			return errors.New(`allow_credentials cannot be combined with wildcard origin "*"`)
+		}
+	}
+	return nil
 }
 
 func (c CORSConfig) withDefaults() CORSConfig {
