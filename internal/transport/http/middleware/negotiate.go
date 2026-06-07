@@ -26,11 +26,7 @@ func Negotiate(json *responder.JSONResponder, html *responder.HTMLResponder) fun
 				resp = html
 			}
 
-			ctx := r.Context()
-			ctx = httpctx.WithResponder(ctx, resp)
-			ctx = httpctx.WithRenderMode(ctx, mode)
-
-			next.ServeHTTP(w, r.WithContext(ctx))
+			next.ServeHTTP(w, r.WithContext(httpctx.WithResponder(r.Context(), resp)))
 		})
 	}
 }

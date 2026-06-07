@@ -1,4 +1,3 @@
-// Package httpctx stores HTTP-specific request context values.
 package httpctx
 
 import (
@@ -7,11 +6,9 @@ import (
 	"github.com/soltiHQ/control-plane/internal/transport/http/responder"
 )
 
-type (
-	responderKey  struct{}
-	renderModeKey struct{}
-)
+type responderKey struct{}
 
+// fallback is an immutable sentinel returned when no responder was negotiated.
 var fallback responder.Responder = responder.NewJSON()
 
 // WithResponder stores the negotiated responder in ctx.
@@ -25,17 +22,4 @@ func Responder(ctx context.Context) responder.Responder {
 		return r
 	}
 	return fallback
-}
-
-// WithRenderMode stores the render mode in ctx.
-func WithRenderMode(ctx context.Context, m RenderMode) context.Context {
-	return context.WithValue(ctx, renderModeKey{}, m)
-}
-
-// Mode returns the render mode from ctx, defaulting to RenderPage.
-func Mode(ctx context.Context) RenderMode {
-	if m, ok := ctx.Value(renderModeKey{}).(RenderMode); ok {
-		return m
-	}
-	return RenderPage
 }

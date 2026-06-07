@@ -58,7 +58,7 @@ func Recovery(logger zerolog.Logger) func(http.Handler) http.Handler {
 					}
 					return
 				}
-				response.Unavailable(w, r, httpctx.Mode(r.Context()))
+				response.Unavailable(w, r, httpctx.ModeFromRequest(r))
 			}()
 			next.ServeHTTP(wrapped, r)
 		})

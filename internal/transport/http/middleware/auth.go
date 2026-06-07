@@ -19,7 +19,7 @@ func Auth(verifier token.Verifier, sessionSvc *session.Service) func(http.Handle
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var (
-				mode            = httpctx.Mode(r.Context())
+				mode            = httpctx.ModeFromRequest(r)
 				raw, fromHeader = extractBearer(r)
 			)
 			if raw == "" {
@@ -52,7 +52,7 @@ func RequirePermission(perm enum.Permission) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var (
-				mode   = httpctx.Mode(r.Context())
+				mode   = httpctx.ModeFromRequest(r)
 				id, ok = transportctx.Identity(r.Context())
 			)
 			if !ok {
