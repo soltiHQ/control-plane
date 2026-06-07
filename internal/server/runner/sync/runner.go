@@ -36,7 +36,6 @@ import (
 	"github.com/soltiHQ/control-plane/internal/event"
 	"github.com/soltiHQ/control-plane/internal/proxy"
 	"github.com/soltiHQ/control-plane/internal/storage"
-	"github.com/soltiHQ/control-plane/internal/uikit/htmx"
 )
 
 // proxyGetter is the small subset of *proxy.Pool that the sync runner
@@ -222,7 +221,7 @@ func (r *Runner) reconcileUninstall(ctx context.Context, ss *model.Rollout) {
 			r.logger.Error().Err(err).Str("rid", ss.ID()).Msg("reconcile/uninstall: delete rollout failed")
 			return
 		}
-		r.hub.Notify(htmx.SpecUpdate)
+		r.hub.Notify(event.RefreshSpecs)
 		return
 	}
 
@@ -245,7 +244,7 @@ func (r *Runner) reconcileUninstall(ctx context.Context, ss *model.Rollout) {
 		Str("spec_id", ss.SpecID()).
 		Str("agent_id", ss.AgentID()).
 		Msg("rollout uninstalled")
-	r.hub.Notify(htmx.SpecUpdate)
+	r.hub.Notify(event.RefreshSpecs)
 }
 
 // reconcileSubmit applies the current spec to the agent via ApplyTask,
@@ -325,7 +324,7 @@ func (r *Runner) getProxy(ctx context.Context, ss *model.Rollout) (proxy.AgentPr
 // whose last rollout has drained. This is the finalizer pass of a
 // soft-delete flow.
 //
-// We emit a single `htmx.SpecUpdate` if any spec was actually deleted
+// We emit a single `event.RefreshSpecs` if any spec was actually deleted
 // — not one per spec — so a single tick cleaning up N tombstones does
 // not fan out N SSE broadcasts to every connected UI.
 func (r *Runner) finalizeDeletedSpecs(ctx context.Context) {
@@ -353,7 +352,7 @@ func (r *Runner) finalizeDeletedSpecs(ctx context.Context) {
 		finalized++
 	}
 	if finalized > 0 {
-		r.hub.Notify(htmx.SpecUpdate)
+		r.hub.Notify(event.RefreshSpecs)
 	}
 }
 
@@ -371,7 +370,7 @@ func (r *Runner) markSynced(ctx context.Context, rID string, generation int, tas
 		r.logger.Error().Err(err).Str("rid", rID).Msg("markSynced: upsert failed")
 		return
 	}
-	r.hub.Notify(htmx.SpecUpdate)
+	r.hub.Notify(event.RefreshSpecs)
 }
 
 // markFailed records a reconciliation failure. Intent stays — the sync
@@ -396,7 +395,7 @@ func (r *Runner) markFailed(ctx context.Context, ss *model.Rollout, errMsg strin
 	r.hub.Record(event.SyncFailed, event.Payload{
 		ID: ss.SpecID(), Name: specName, Detail: ss.AgentID(), By: "sync",
 	})
-	r.hub.Notify(htmx.SpecUpdate)
+	r.hub.Notify(event.RefreshSpecs)
 }
 
 // isNotFound heuristically matches "task not found" responses from the

@@ -19,7 +19,6 @@ import (
 	"github.com/soltiHQ/control-plane/internal/event"
 	"github.com/soltiHQ/control-plane/internal/storage"
 	"github.com/soltiHQ/control-plane/internal/storage/inmemory"
-	"github.com/soltiHQ/control-plane/internal/uikit/htmx"
 )
 
 // Runner is a server.Runner that periodically checks agent liveness.
@@ -164,7 +163,7 @@ func (r *Runner) reconcile(ctx context.Context, now time.Time, a *model.Agent) {
 			Msg("agent deleted (stale)")
 
 		r.hub.Record(event.AgentDeleted, event.Payload{ID: a.ID(), Name: a.Name(), By: "lifecycle"})
-		r.hub.Notify(htmx.AgentUpdate)
+		r.hub.Notify(event.RefreshAgents)
 
 	case silence > hb*time.Duration(r.cfg.DisconnectMultiplier):
 		if a.Status() != enum.AgentStatusDisconnected {
@@ -179,7 +178,7 @@ func (r *Runner) reconcile(ctx context.Context, now time.Time, a *model.Agent) {
 				Msg("agent → disconnected")
 
 			r.hub.Record(event.AgentDisconnected, event.Payload{ID: a.ID(), Name: a.Name(), By: "lifecycle"})
-			r.hub.Notify(htmx.AgentUpdate)
+			r.hub.Notify(event.RefreshAgents)
 		}
 
 	case silence > hb*time.Duration(r.cfg.InactiveMultiplier):
@@ -195,7 +194,7 @@ func (r *Runner) reconcile(ctx context.Context, now time.Time, a *model.Agent) {
 				Msg("agent → inactive")
 
 			r.hub.Record(event.AgentInactive, event.Payload{ID: a.ID(), Name: a.Name(), By: "lifecycle"})
-			r.hub.Notify(htmx.AgentUpdate)
+			r.hub.Notify(event.RefreshAgents)
 		}
 	}
 }

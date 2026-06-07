@@ -8,7 +8,7 @@ uikit/
 ├── policy/       permission-based UI visibility flags
 ├── routepath/    URL constants for pages and API endpoints
 ├── timeformat/   human-readable time formatting (relative, session, uptime)
-└── htmx/         HTMX response helpers, named trigger events, polling intervals
+└── htmx/         HTMX response helpers, polling intervals, event.Refresh* aliases
 ```
 
 ## policy
@@ -44,7 +44,7 @@ Human-readable time formatting helpers used by templ templates.
 ```
 
 ## htmx
-HTMX response helpers, named trigger events, and configurable polling intervals.
+HTMX response helpers and configurable polling intervals.
 Event infrastructure (Hub, ring buffers, SSE) lives in `internal/event`.
 
 ### Helpers
@@ -56,14 +56,14 @@ htmx.PollMulti(htmx.Every3m, htmx.AgentUpdate, htmx.SpecUpdate)
 htmx.LoadAndPoll(htmx.Every1m, htmx.SpecUpdate)                  // "load, every 60s, spec_update from:body"
 ```
 
-### Trigger names
-| Constant          | Value              |
-|-------------------|--------------------|
-| `SessionUpdate`   | `session_update`   |
-| `AgentUpdate`     | `agent_update`     |
-| `SpecUpdate`      | `spec_update`      |
-| `UserUpdate`      | `user_update`      |
-| `DashboardUpdate` | `dashboard_update` |
+### Trigger names (aliases of `event.Refresh*`)
+| htmx alias (templates) | canonical (`internal/event`) | wire value         |
+|------------------------|------------------------------|--------------------|
+| `SessionUpdate`        | `event.RefreshSessions`      | `session_update`   |
+| `AgentUpdate`          | `event.RefreshAgents`        | `agent_update`     |
+| `SpecUpdate`           | `event.RefreshSpecs`         | `spec_update`      |
+| `UserUpdate`           | `event.RefreshUsers`         | `user_update`      |
+| `DashboardUpdate`      | `event.RefreshDashboard`     | `dashboard_update` |
 
 ### Polling intervals (defaults)
 | Scope           | Interval | Getter                     |

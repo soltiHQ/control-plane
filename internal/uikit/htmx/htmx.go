@@ -1,16 +1,23 @@
 package htmx
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/soltiHQ/control-plane/internal/event"
+)
 
 const (
 	Header         = "HX-Trigger"
 	RedirectHeader = "HX-Redirect"
+)
 
-	SessionUpdate   = "session_update"
-	AgentUpdate     = "agent_update"
-	SpecUpdate      = "spec_update"
-	UserUpdate      = "user_update"
-	DashboardUpdate = "dashboard_update"
+// Trigger-name aliases re-exported from internal/event.
+const (
+	SessionUpdate   = event.RefreshSessions
+	AgentUpdate     = event.RefreshAgents
+	SpecUpdate      = event.RefreshSpecs
+	UserUpdate      = event.RefreshUsers
+	DashboardUpdate = event.RefreshDashboard
 )
 
 const (
@@ -123,13 +130,13 @@ func GetSpecsRefresh() string { return cfg.SpecsRefresh }
 // GetSpecDetailRefresh returns the polling interval for spec detail identity.
 func GetSpecDetailRefresh() string { return cfg.SpecDetailRefresh }
 
-// Poll returns an hx-trigger value combining a polling interval with an SSE event.
+// Poll returns a hx-trigger value combining a polling interval with an SSE event.
 // Use on Results containers that handle periodic and event-driven refreshes.
 func Poll(interval, event string) string {
 	return interval + ", " + event + " from:body"
 }
 
-// PollMulti returns an hx-trigger value combining a polling interval with multiple SSE events.
+// PollMulti returns a hx-trigger value combining a polling interval with multiple SSE events.
 func PollMulti(interval string, events ...string) string {
 	s := interval
 	for _, e := range events {
@@ -138,8 +145,7 @@ func PollMulti(interval string, events ...string) string {
 	return s
 }
 
-// LoadAndPoll returns a hx-trigger value that fires once on a load, then keeps
-// refreshing via polling and SSE. Use on DetailPanel containers.
+// LoadAndPoll returns a hx-trigger value that fires once on a load, then keeps refreshing via polling and SSE.
 func LoadAndPoll(interval, event string) string {
 	return "load, " + interval + ", " + event + " from:body"
 }

@@ -233,7 +233,7 @@ func (a *API) specUpsert(w http.ResponseWriter, r *http.Request, mode httpctx.Re
 		}
 		a.logger.Info().Str("spec", ts.ID()).Str("name", ts.Name()).Msg("spec created")
 		a.hub.Record(event.SpecCreated, event.Payload{ID: ts.ID(), Name: ts.Name()})
-		a.hub.Notify(htmx.SpecUpdate)
+		a.hub.Notify(event.RefreshSpecs)
 		htmx.Redirect(w, routepath.PageSpecs)
 		response.NoContent(w, r)
 		return
@@ -259,7 +259,7 @@ func (a *API) specUpsert(w http.ResponseWriter, r *http.Request, mode httpctx.Re
 	}
 	a.logger.Info().Str("spec", id).Msg("spec updated")
 	a.hub.Record(event.SpecUpdated, event.Payload{ID: id, Name: ts.Name()})
-	a.hub.Notify(htmx.SpecUpdate)
+	a.hub.Notify(event.RefreshSpecs)
 	// Mirror the create path: after Save Changes send the user back to
 	// the specs list. The edit form's Alpine submit handler honors the
 	// HX-Redirect header. The old htmx.Trigger(SpecUpdate) no longer
@@ -277,7 +277,7 @@ func (a *API) specDelete(w http.ResponseWriter, r *http.Request, mode httpctx.Re
 		return
 	}
 	a.logger.Info().Str("spec", id).Msg("spec deleted")
-	a.hub.Notify(htmx.SpecUpdate)
+	a.hub.Notify(event.RefreshSpecs)
 	htmx.Redirect(w, routepath.PageSpecs)
 	response.NoContent(w, r)
 }
@@ -294,7 +294,7 @@ func (a *API) specForceDelete(w http.ResponseWriter, r *http.Request, mode httpc
 		return
 	}
 	a.logger.Warn().Str("spec", id).Msg("spec force-deleted; agent tasks may be orphaned")
-	a.hub.Notify(htmx.SpecUpdate)
+	a.hub.Notify(event.RefreshSpecs)
 	htmx.Redirect(w, routepath.PageSpecs)
 	response.NoContent(w, r)
 }
@@ -328,8 +328,8 @@ func (a *API) specDeploy(w http.ResponseWriter, r *http.Request, mode httpctx.Re
 		specName = ts.Name()
 	}
 	a.hub.Record(event.SpecDeployed, event.Payload{ID: id, Name: specName})
-	htmx.Trigger(w, htmx.SpecUpdate)
-	a.hub.Notify(htmx.SpecUpdate)
+	htmx.Trigger(w, event.RefreshSpecs)
+	a.hub.Notify(event.RefreshSpecs)
 	response.NoContent(w, r)
 }
 

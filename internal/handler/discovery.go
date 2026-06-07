@@ -22,7 +22,6 @@ import (
 	"github.com/soltiHQ/control-plane/internal/transport/http/responder"
 	"github.com/soltiHQ/control-plane/internal/transport/http/response"
 	"github.com/soltiHQ/control-plane/internal/transport/httpctx"
-	"github.com/soltiHQ/control-plane/internal/uikit/htmx"
 )
 
 // discoverySyncUnmarshal is a protojson.UnmarshalOptions with
@@ -124,10 +123,10 @@ func (h *HTTPDiscovery) Sync(w http.ResponseWriter, r *http.Request) {
 		n += h.eventHub.DeleteIssues(event.AgentDisconnected, in.GetId())
 		if n > 0 {
 			h.eventHub.Record(event.IssueClosed, event.Payload{ID: in.GetId(), Name: in.GetName(), By: "discovery"})
-			h.eventHub.Notify(htmx.DashboardUpdate)
+			h.eventHub.Notify(event.RefreshDashboard)
 		}
 	}
-	h.eventHub.Notify(htmx.AgentUpdate)
+	h.eventHub.Notify(event.RefreshAgents)
 
 	resp := &discoverv1.SyncResponse{Success: true}
 	respBytes, err := discoverySyncMarshal.Marshal(resp)
@@ -197,9 +196,9 @@ func (g *GRPCDiscovery) Sync(ctx context.Context, req *discoverv1.SyncRequest) (
 		n += g.hub.DeleteIssues(event.AgentDisconnected, req.GetId())
 		if n > 0 {
 			g.hub.Record(event.IssueClosed, event.Payload{ID: req.GetId(), Name: req.GetName(), By: "discovery"})
-			g.hub.Notify(htmx.DashboardUpdate)
+			g.hub.Notify(event.RefreshDashboard)
 		}
 	}
-	g.hub.Notify(htmx.AgentUpdate)
+	g.hub.Notify(event.RefreshAgents)
 	return &discoverv1.SyncResponse{Success: true}, nil
 }

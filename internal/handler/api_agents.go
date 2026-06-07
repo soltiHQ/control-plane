@@ -126,8 +126,8 @@ func (a *API) agentPatchLabels(w http.ResponseWriter, r *http.Request, mode http
 	}
 
 	a.logger.Info().Str("agent_id", id).Msg("agent labels updated")
-	htmx.Trigger(w, htmx.AgentUpdate)
-	a.hub.Notify(htmx.AgentUpdate)
+	htmx.Trigger(w, event.RefreshAgents)
+	a.hub.Notify(event.RefreshAgents)
 	response.NoContent(w, r)
 }
 

@@ -26,6 +26,23 @@ type Record struct {
 	Payload Payload
 }
 
+// Refresh triggers are coarse "this view changed, re-fetch it" pulses sent via
+// [Hub.Notify]. They reach the browser as SSE HX-Trigger events and drive the
+// HTMX polling containers. Two distinct channels share this Hub:
+//
+//   - Refresh* (Notify)            → transient UI refresh signal, not stored.
+//   - *Created / *Updated / …      → persisted activity-feed entries (Record).
+//
+// Values are the on-the-wire HX-Trigger names; templates reference them through
+// the htmx package, which aliases these constants.
+const (
+	RefreshDashboard = "dashboard_update"
+	RefreshAgents    = "agent_update"
+	RefreshSpecs     = "spec_update"
+	RefreshUsers     = "user_update"
+	RefreshSessions  = "session_update"
+)
+
 // Event kinds for the dashboard activity feed.
 const (
 	AgentConnected    = "agent_connected"

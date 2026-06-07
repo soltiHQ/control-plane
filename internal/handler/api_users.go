@@ -239,7 +239,7 @@ func (a *API) userUpsert(w http.ResponseWriter, r *http.Request, mode httpctx.Re
 	if action == modeCreate {
 		a.logger.Info().Str("user_id", u.ID()).Str("subject", u.Subject()).Msg("user created")
 		a.hub.Record(event.UserCreated, event.Payload{ID: u.ID(), Name: u.Name(), By: by})
-		a.hub.Notify(htmx.UserUpdate)
+		a.hub.Notify(event.RefreshUsers)
 		htmx.Redirect(w, routepath.PageUsers)
 		response.NoContent(w, r)
 		return
@@ -248,8 +248,8 @@ func (a *API) userUpsert(w http.ResponseWriter, r *http.Request, mode httpctx.Re
 	a.hub.Record(event.UserUpdated, event.Payload{
 		ID: u.ID(), Name: u.Name(), By: by,
 	})
-	htmx.Trigger(w, htmx.UserUpdate)
-	a.hub.Notify(htmx.UserUpdate)
+	htmx.Trigger(w, event.RefreshUsers)
+	a.hub.Notify(event.RefreshUsers)
 	response.NoContent(w, r)
 }
 
@@ -269,7 +269,7 @@ func (a *API) userDelete(w http.ResponseWriter, r *http.Request, mode httpctx.Re
 	a.hub.Record(event.UserDeleted, event.Payload{
 		ID: id, Name: name, By: a.actor(r),
 	})
-	a.hub.Notify(htmx.UserUpdate)
+	a.hub.Notify(event.RefreshUsers)
 	htmx.Redirect(w, routepath.PageUsers)
 	response.NoContent(w, r)
 }
@@ -305,8 +305,8 @@ func (a *API) userSetStatus(w http.ResponseWriter, r *http.Request, mode httpctx
 	a.hub.Record(event.UserStatusChanged, event.Payload{
 		ID: u.ID(), Name: u.Name(), By: a.actor(r), Detail: detail,
 	})
-	htmx.Trigger(w, htmx.UserUpdate)
-	a.hub.Notify(htmx.UserUpdate)
+	htmx.Trigger(w, event.RefreshUsers)
+	a.hub.Notify(event.RefreshUsers)
 	response.NoContent(w, r)
 }
 
@@ -346,8 +346,8 @@ func (a *API) userSetPassword(w http.ResponseWriter, r *http.Request, mode httpc
 	a.hub.Record(event.UserPasswordChanged, event.Payload{
 		ID: userID, Name: userName, By: a.actor(r),
 	})
-	htmx.Trigger(w, htmx.UserUpdate)
-	a.hub.Notify(htmx.UserUpdate)
+	htmx.Trigger(w, event.RefreshUsers)
+	a.hub.Notify(event.RefreshUsers)
 	response.NoContent(w, r)
 }
 
@@ -363,7 +363,7 @@ func (a *API) userRevokeSession(w http.ResponseWriter, r *http.Request, mode htt
 	}
 
 	a.logger.Info().Str("session_id", id).Msg("session revoked")
-	htmx.Trigger(w, htmx.SessionUpdate)
-	a.hub.Notify(htmx.SessionUpdate)
+	htmx.Trigger(w, event.RefreshSessions)
+	a.hub.Notify(event.RefreshSessions)
 	response.NoContent(w, r)
 }

@@ -134,7 +134,7 @@ func (a *API) IssuesDelete(w http.ResponseWriter, r *http.Request) {
 			Name: name,
 		})
 	}
-	htmx.Trigger(w, htmx.DashboardUpdate)
-	a.hub.Notify(htmx.DashboardUpdate)
+	htmx.Trigger(w, event.RefreshDashboard)
+	a.hub.Notify(event.RefreshDashboard)
 	response.NoContent(w, r)
 }
