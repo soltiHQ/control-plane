@@ -11,18 +11,15 @@ const (
 // ListOptions specifies pagination parameters for list operations.
 //
 // Contract:
-//
 //   - Cursor is an opaque, implementation-defined continuation token.
 //   - Limit must be clamped to (1..MaxListLimit). If zero or negative,
 //     DefaultListLimit must be used.
 //   - Implementations must guarantee stable ordering across pages.
 //
 // Ordering:
+// All list operations must order results by: CreatedAt DESC, ID ASC
 //
-// All list operations must order results by:
-//
-//	(UpdatedAt DESC, ID ASC)
-//
+// CreatedAt is immutable, so a record updated between page fetches keeps its position.
 // This ensures:
 //   - Deterministic ordering.
 //   - Stable cursor-based pagination.

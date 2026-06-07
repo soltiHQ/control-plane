@@ -3,6 +3,7 @@ package inmemory
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/soltiHQ/control-plane/domain/enum"
@@ -25,6 +26,9 @@ var (
 
 // Store provides an in-memory implementation of storage.Storage using GenericStore.
 type Store struct {
+	// txMu serialises WithTx calls against each other (one transaction at a time per Store).
+	txMu sync.Mutex
+
 	agents      *GenericStore[*model.Agent]
 	users       *GenericStore[*model.User]
 	roles       *GenericStore[*model.Role]

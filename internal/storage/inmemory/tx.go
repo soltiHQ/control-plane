@@ -2,24 +2,11 @@ package inmemory
 
 import (
 	"context"
-	"sync"
 
 	"github.com/soltiHQ/control-plane/domain"
 	"github.com/soltiHQ/control-plane/domain/model"
 	"github.com/soltiHQ/control-plane/internal/storage"
 )
-
-// txMu is the per-Store write lock for WithTx, kept out-of-struct so the
-// Store definition stays untouched. One transaction at a time per Store.
-var txMu sync.Map // map[*Store]*sync.Mutex
-
-func (s *Store) txLock() *sync.Mutex {
-	if m, ok := txMu.Load(s); ok {
-		return m.(*sync.Mutex)
-	}
-	m, _ := txMu.LoadOrStore(s, &sync.Mutex{})
-	return m.(*sync.Mutex)
-}
 
 // snapshot is a shallow copy of every GenericStore's data map. Values are
 // already stored as clones by the write path, so a map-level copy is
@@ -75,15 +62,26 @@ func restoreMap[T domain.Entity[T]](g *GenericStore[T], snap map[string]T) {
 	g.data = snap
 }
 
-// WithTx serialises writes and runs fn as an atomic transaction.
+// WithTx serialises transactions and runs fn as an atomic unit: on nil it
+// commits (the in-memory Store mutates directly), on error it restores the
+// pre-transaction snapshot.
 //
-// On nil return from fn: mutations are committed (they were already in
-// place, since the in-memory Store mutates directly).
-// On error: the pre-transaction snapshot is restored and the error is
-// propagated.
+// Isolation contract — IMPORTANT:
 //
-// Nested WithTx inside fn calls fn without re-locking (already-inside-a-tx
-// semantics) so helpers that defensively call WithTx can be composed.
+// txMu serialises WithTx calls against EACH OTHER, but NOT against direct
+// (non-WithTx) writes such as UpsertAgent. Rollback restores a whole-map
+// snapshot, so a direct write that commits while a transaction is in flight is
+// LOST if that transaction then fails.
+//
+// This is safe whenever all writes are serialised by the caller:
+//   - Raft mode: every write is applied by the single FSM goroutine (see
+//     internal/raft/fsm.go), so direct writes never overlap a transaction.
+//   - Standalone mode: concurrent direct writes CAN race a failing transaction.
+//     Full standalone isolation needs a store-wide write lock held across fn
+//     (a gated/ungated split, since Go locks are not reentrant) — tracked
+//     separately.
+//
+// Nested WithTx inside fn runs fn without re-locking (already-inside-a-tx).
 func (s *Store) WithTx(ctx context.Context, fn func(tx storage.Storage) error) error {
 	if fn == nil {
 		return storage.ErrInvalidArgument
@@ -92,9 +90,8 @@ func (s *Store) WithTx(ctx context.Context, fn func(tx storage.Storage) error) e
 		return err
 	}
 
-	lock := s.txLock()
-	lock.Lock()
-	defer lock.Unlock()
+	s.txMu.Lock()
+	defer s.txMu.Unlock()
 
 	snap := s.takeSnapshot()
 	if err := fn(&txView{Store: s}); err != nil {
