@@ -2,14 +2,12 @@ package status
 
 import (
 	"context"
-	"errors"
 
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 
-	"github.com/soltiHQ/control-plane/internal/auth"
-	"github.com/soltiHQ/control-plane/internal/storage"
+	"github.com/soltiHQ/control-plane/internal/transport/errkind"
 	"github.com/soltiHQ/control-plane/internal/transportctx"
 )
 
@@ -45,41 +43,29 @@ func Errorf(ctx context.Context, code codes.Code, format string, args ...any) er
 	return st.Err()
 }
 
+// mapError translates the shared errkind.Kind into a gRPC code and client message.
 func mapError(err error) (codes.Code, string) {
-	switch {
-	case errors.Is(err, context.Canceled):
+	switch errkind.Classify(err) {
+	case errkind.Canceled:
 		return codes.Canceled, "request canceled"
-	case errors.Is(err, context.DeadlineExceeded):
+	case errkind.DeadlineExceeded:
 		return codes.DeadlineExceeded, "deadline exceeded"
-
-	case errors.Is(err, auth.ErrInvalidCredentials),
-		errors.Is(err, auth.ErrPasswordMismatch),
-		errors.Is(err, auth.ErrInvalidToken),
-		errors.Is(err, auth.ErrExpiredToken),
-		errors.Is(err, auth.ErrInvalidRefresh),
-		errors.Is(err, auth.ErrRevoked):
+	case errkind.Unauthenticated:
 		return codes.Unauthenticated, "unauthenticated"
-
-	case errors.Is(err, auth.ErrUnauthorized):
+	case errkind.PermissionDenied:
 		return codes.PermissionDenied, "permission denied"
-
-	case errors.Is(err, auth.ErrInvalidRequest),
-		errors.Is(err, auth.ErrInvalidArgument),
-		errors.Is(err, auth.ErrWrongAuthKind):
+	case errkind.InvalidArgument:
 		return codes.InvalidArgument, "invalid argument"
-
-	case errors.Is(err, auth.ErrUserDisabled):
+	case errkind.FailedPrecondition:
 		return codes.FailedPrecondition, "user disabled"
-
-	case errors.Is(err, storage.ErrNotFound):
+	case errkind.NotFound:
 		return codes.NotFound, "not found"
-	case errors.Is(err, storage.ErrAlreadyExists):
+	case errkind.AlreadyExists:
 		return codes.AlreadyExists, "already exists"
-	case errors.Is(err, storage.ErrConflict):
+	case errkind.Conflict:
 		return codes.Aborted, "conflict"
-	case errors.Is(err, storage.ErrInvalidArgument):
-		return codes.InvalidArgument, "invalid argument"
-
+	case errkind.Unavailable:
+		return codes.Unavailable, "unavailable"
 	default:
 		return codes.Internal, "internal error"
 	}

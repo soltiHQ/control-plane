@@ -14,8 +14,7 @@ import (
 	"github.com/soltiHQ/control-plane/internal/auth/ratelimit"
 )
 
-// UnaryRateLimit is the gRPC equivalent of [middleware.RateLimit]: per-IP
-// failure-based throttle using the same [ratelimit.Limiter].
+// UnaryRateLimit is the gRPC equivalent of [middleware.RateLimit]: per-IP failure-based throttle using the same [ratelimit.Limiter].
 //
 // Semantics:
 //
@@ -45,7 +44,6 @@ func UnaryRateLimit(limiter *ratelimit.Limiter) grpc.UnaryServerInterceptor {
 	}
 }
 
-// peerAddr extracts the caller's address from the gRPC context.
 func peerAddr(ctx context.Context) string {
 	p, ok := peer.FromContext(ctx)
 	if !ok || p == nil || p.Addr == nil {

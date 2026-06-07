@@ -19,8 +19,7 @@ import (
 	"github.com/soltiHQ/control-plane/internal/transportctx"
 )
 
-// wrappedStream injects a modified context into a server stream so chained
-// stream interceptors can attach values (request id, identity, ...).
+// wrappedStream injects a modified context into a server stream so chained stream interceptors can attach values.
 type wrappedStream struct {
 	grpc.ServerStream
 	ctx context.Context
@@ -28,8 +27,8 @@ type wrappedStream struct {
 
 func (w *wrappedStream) Context() context.Context { return w.ctx }
 
-// StreamRecovery is the stream counterpart of UnaryRecovery — catches
-// panics inside streaming handlers and surfaces them as codes.Internal.
+// StreamRecovery is the stream counterpart of UnaryRecovery.
+// Catches panics inside streaming handlers and surfaces them as codes.Internal.
 func StreamRecovery(logger zerolog.Logger) grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
 		defer func() {
@@ -52,8 +51,7 @@ func StreamRecovery(logger zerolog.Logger) grpc.StreamServerInterceptor {
 	}
 }
 
-// StreamRequestID injects a request id into the stream context, same way
-// UnaryRequestID does for unary RPCs.
+// StreamRequestID injects a request id into the stream context, the same way UnaryRequestID does for unary RPCs.
 func StreamRequestID() grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		ctx := ensureRequestID(ss.Context())
@@ -87,10 +85,8 @@ func StreamLogger(logger zerolog.Logger) grpc.StreamServerInterceptor {
 	}
 }
 
-// StreamRateLimit applies per-peer failure-based throttling to streaming
-// RPCs. Counts a stream as a failure only if the handler exits with an
-// error; long-lived successful streams reset the limiter so legitimate
-// log-tail clients don't accumulate counts on disconnect.
+// StreamRateLimit applies per-peer failure-based throttling to streaming RPCs.
+// Counts a stream as a failure only if the handler exits with an error.
 func StreamRateLimit(limiter *ratelimit.Limiter) grpc.StreamServerInterceptor {
 	if limiter == nil {
 		return func(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
@@ -112,9 +108,7 @@ func StreamRateLimit(limiter *ratelimit.Limiter) grpc.StreamServerInterceptor {
 	}
 }
 
-// StreamLeader rejects writes on followers — for streaming this means RPCs
-// the IsWrite predicate marks as mutating. Most streams are reads
-// (log-tail, watches), so the default predicate treats nothing as a write.
+// StreamLeader rejects writes on followers: for streaming this means RPCs the IsWrite predicate marks as mutating.
 func StreamLeader(leadership cluster.Leadership, opts LeaderOptions) grpc.StreamServerInterceptor {
 	isWrite := opts.IsWrite
 	if isWrite == nil {

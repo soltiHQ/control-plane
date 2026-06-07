@@ -14,11 +14,7 @@ import (
 	"github.com/soltiHQ/control-plane/internal/transportctx"
 )
 
-// UnaryAuth returns a unary server interceptor that verifies the access token
-// from metadata and stores the identity in context.
-//
-// skipMethods is a set of full method names that bypass authentication
-// (e.g. "/package.Service/Health").
+// UnaryAuth returns a unary server interceptor that verifies the access token from metadata and stores the identity in context.
 func UnaryAuth(verifier token.Verifier, skipMethods map[string]struct{}) grpc.UnaryServerInterceptor {
 	if skipMethods == nil {
 		skipMethods = make(map[string]struct{})
@@ -44,8 +40,7 @@ func UnaryAuth(verifier token.Verifier, skipMethods map[string]struct{}) grpc.Un
 	}
 }
 
-// UnaryRequirePermission returns a unary server interceptor that checks
-// identity for a specific permission. Returns PermissionDenied if missing.
+// UnaryRequirePermission returns a unary server interceptor that checks identity for a specific permission.
 //
 // Must be chained after UnaryAuth.
 func UnaryRequirePermission(perm enum.Permission) grpc.UnaryServerInterceptor {

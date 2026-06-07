@@ -89,12 +89,10 @@ func (a *API) agentList(w http.ResponseWriter, r *http.Request, mode httpctx.Ren
 func (a *API) agentDetails(w http.ResponseWriter, r *http.Request, mode httpctx.RenderMode, id string) {
 	ag, err := a.agentSVC.Get(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
-			response.NotFound(w, r, mode)
-			return
+		if !errors.Is(err, storage.ErrNotFound) {
+			a.logger.Error().Err(err).Str("agent_id", id).Msg("agent get failed")
 		}
-		a.logger.Error().Err(err).Str("agent_id", id).Msg("agent get failed")
-		response.Unavailable(w, r, mode)
+		response.FromError(w, r, mode, err)
 		return
 	}
 
@@ -117,12 +115,10 @@ func (a *API) agentPatchLabels(w http.ResponseWriter, r *http.Request, mode http
 		Labels: labels,
 	})
 	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
-			response.NotFound(w, r, mode)
-			return
+		if !errors.Is(err, storage.ErrNotFound) {
+			a.logger.Error().Err(err).Str("agent_id", id).Msg("agent patch labels failed")
 		}
-		a.logger.Error().Err(err).Str("agent_id", id).Msg("agent patch labels failed")
-		response.Unavailable(w, r, mode)
+		response.FromError(w, r, mode, err)
 		return
 	}
 
@@ -202,14 +198,12 @@ func (a *API) AgentTaskLogsStream(w http.ResponseWriter, r *http.Request) {
 func (a *API) agentTasksList(w http.ResponseWriter, r *http.Request, mode httpctx.RenderMode, agentID string) {
 	ag, err := a.agentSVC.Get(r.Context(), agentID)
 	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
-			response.NotFound(w, r, mode)
-			return
+		if !errors.Is(err, storage.ErrNotFound) {
+			a.logger.Error().Err(err).
+				Str("agent_id", agentID).
+				Msg("agent tasks: agent lookup failed")
 		}
-		a.logger.Error().Err(err).
-			Str("agent_id", agentID).
-			Msg("agent tasks: agent lookup failed")
-		response.Unavailable(w, r, mode)
+		response.FromError(w, r, mode, err)
 		return
 	}
 	if ag.Endpoint() == "" {

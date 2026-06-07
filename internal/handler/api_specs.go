@@ -88,12 +88,10 @@ func (a *API) specList(w http.ResponseWriter, r *http.Request, mode httpctx.Rend
 func (a *API) specDetails(w http.ResponseWriter, r *http.Request, mode httpctx.RenderMode, id string) {
 	ts, err := a.specSVC.Get(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
-			response.NotFound(w, r, mode)
-			return
+		if !errors.Is(err, storage.ErrNotFound) {
+			a.logger.Error().Err(err).Str("spec", id).Msg("spec get failed")
 		}
-		a.logger.Error().Err(err).Str("spec", id).Msg("spec get failed")
-		response.Unavailable(w, r, mode)
+		response.FromError(w, r, mode, err)
 		return
 	}
 
@@ -301,18 +299,16 @@ func (a *API) specForceDelete(w http.ResponseWriter, r *http.Request, mode httpc
 
 func (a *API) specDeploy(w http.ResponseWriter, r *http.Request, mode httpctx.RenderMode, id string) {
 	if err := a.specSVC.Deploy(r.Context(), id); err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
-			response.NotFound(w, r, mode)
-			return
-		}
 		var unknown *spec.UnknownTargetsError
 		if errors.As(err, &unknown) {
 			a.logger.Warn().Str("spec", id).Strs("missing_agents", unknown.Agents).Msg("spec deploy rejected")
 			response.BadRequest(w, r, mode)
 			return
 		}
-		a.logger.Error().Err(err).Str("spec", id).Msg("spec deploy failed")
-		response.Unavailable(w, r, mode)
+		if !errors.Is(err, storage.ErrNotFound) {
+			a.logger.Error().Err(err).Str("spec", id).Msg("spec deploy failed")
+		}
+		response.FromError(w, r, mode, err)
 		return
 	}
 

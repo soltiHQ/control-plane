@@ -127,12 +127,10 @@ func (a *API) userList(w http.ResponseWriter, r *http.Request, mode httpctx.Rend
 func (a *API) usersDetails(w http.ResponseWriter, r *http.Request, mode httpctx.RenderMode, id string) {
 	u, err := a.userSVC.Get(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
-			response.NotFound(w, r, mode)
-			return
+		if !errors.Is(err, storage.ErrNotFound) {
+			a.logger.Error().Err(err).Str("user_id", id).Msg("user get failed")
 		}
-		a.logger.Error().Err(err).Str("user_id", id).Msg("user get failed")
-		response.Unavailable(w, r, mode)
+		response.FromError(w, r, mode, err)
 		return
 	}
 

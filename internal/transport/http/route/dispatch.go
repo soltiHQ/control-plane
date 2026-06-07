@@ -56,8 +56,7 @@ func Resource(w http.ResponseWriter, r *http.Request, path string, routes ...End
 	response.NotAllowed(w, r, mode)
 }
 
-// Router handles /{prefix}/{id}[/{action}] dispatching: parses id and optional action,
-// then matches against the route table. Wrong method → 405, unknown action → 404.
+// Router handles /{prefix}/{id}[/{action}] dispatching: parses id and optional action, then matches against the route table.
 func Router(w http.ResponseWriter, r *http.Request, prefix string, routes ...Subroute) {
 	mode := httpctx.ModeFromRequest(r)
 	rest := strings.Trim(strings.TrimPrefix(r.URL.Path, prefix), "/")

@@ -13,8 +13,7 @@ import (
 	"github.com/soltiHQ/control-plane/internal/transportctx"
 )
 
-// UnaryRecovery returns a unary server interceptor that catches panics,
-// logs them with a stack trace, and returns codes.Internal to the client.
+// UnaryRecovery returns a unary server interceptor that catches panics and returns codes.Internal to the client.
 func UnaryRecovery(logger zerolog.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 		defer func() {
