@@ -33,7 +33,7 @@ func (p *grpcProxyV1) ListTasks(ctx context.Context, f TaskFilter) (*proxyv1.Lis
 
 	resp, err := client.ListTasks(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrListTasks, err)
+		return nil, agentError(ErrListTasks, err)
 	}
 
 	tasks := make([]proxyv1.Task, len(resp.GetTasks()))
@@ -55,7 +55,7 @@ func (p *grpcProxyV1) ApplyTask(ctx context.Context, sub TaskSubmission) (string
 
 	resp, err := client.ApplyTask(ctx, &taskv1.ApplyTaskRequest{Spec: sub.Spec})
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrApplyTask, err)
+		return "", agentError(ErrApplyTask, err)
 	}
 	taskID := resp.GetTaskId()
 	if taskID == "" {
@@ -69,7 +69,7 @@ func (p *grpcProxyV1) GetTask(ctx context.Context, taskID string) (*proxyv1.GetT
 
 	resp, err := client.GetTaskStatus(ctx, &taskv1.GetTaskStatusRequest{TaskId: taskID})
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrGetTask, err)
+		return nil, agentError(ErrGetTask, err)
 	}
 
 	var task *proxyv1.Task
@@ -86,7 +86,7 @@ func (p *grpcProxyV1) ListTaskRuns(ctx context.Context, taskID string) (*proxyv1
 
 	resp, err := client.ListTaskRuns(ctx, &taskv1.ListTaskRunsRequest{TaskId: taskID})
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrListTaskRuns, err)
+		return nil, agentError(ErrListTaskRuns, err)
 	}
 
 	runs := make([]proxyv1.TaskRun, len(resp.GetRuns()))
@@ -116,7 +116,7 @@ func (p *grpcProxyV1) DeleteTask(ctx context.Context, taskID string) error {
 
 	_, err := client.DeleteTask(ctx, &taskv1.DeleteTaskRequest{TaskId: taskID})
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrDeleteTask, err)
+		return agentError(ErrDeleteTask, err)
 	}
 
 	return nil
@@ -130,7 +130,7 @@ func (p *grpcProxyV1) StreamTaskLogs(ctx context.Context, taskID string) (<-chan
 	client := taskv1.NewTaskServiceClient(p.conn)
 	stream, err := client.StreamTaskLogs(ctx, &taskv1.StreamTaskLogsRequest{TaskId: taskID})
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrStreamTaskLogs, err)
+		return nil, agentError(ErrStreamTaskLogs, err)
 	}
 	ch := make(chan *taskv1.StreamTaskLogsResponse, 64)
 	go func() {

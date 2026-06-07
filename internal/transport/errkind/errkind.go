@@ -8,6 +8,9 @@ import (
 	"github.com/soltiHQ/control-plane/internal/storage"
 )
 
+// kinder is satisfied by an error that already carries its Kind.
+type kinder interface{ ErrorKind() Kind }
+
 // Kind is a transport-agnostic error category.
 type Kind int
 
@@ -27,10 +30,16 @@ const (
 
 // Classify maps a (non-nil) error to its Kind.
 func Classify(err error) Kind {
-	switch {
-	case err == nil:
+	if err == nil {
 		return Internal
+	}
 
+	var k kinder
+	if errors.As(err, &k) {
+		return k.ErrorKind()
+	}
+
+	switch {
 	case errors.Is(err, context.Canceled):
 		return Canceled
 	case errors.Is(err, context.DeadlineExceeded):

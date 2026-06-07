@@ -10,6 +10,20 @@ import (
 	"github.com/soltiHQ/control-plane/internal/storage"
 )
 
+type kindErr struct{ k Kind }
+
+func (e kindErr) Error() string   { return "tagged" }
+func (e kindErr) ErrorKind() Kind { return e.k }
+
+func TestClassifyKinder(t *testing.T) {
+	if got := Classify(kindErr{k: NotFound}); got != NotFound {
+		t.Fatalf("Classify(kinder NotFound) = %v, want NotFound", got)
+	}
+	if got := Classify(fmt.Errorf("op: %w", kindErr{k: Conflict})); got != Conflict {
+		t.Fatalf("Classify(wrapped kinder Conflict) = %v, want Conflict", got)
+	}
+}
+
 func TestClassify(t *testing.T) {
 	tests := []struct {
 		name string

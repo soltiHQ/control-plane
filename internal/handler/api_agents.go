@@ -247,7 +247,7 @@ func (a *API) agentTasksList(w http.ResponseWriter, r *http.Request, mode httpct
 			Str("agent_id", agentID).
 			Str("endpoint", ag.Endpoint()).
 			Msg("proxy: ListTasks failed")
-		response.Unavailable(w, r, mode)
+		response.FromError(w, r, mode, err)
 		return
 	}
 	if q != "" {

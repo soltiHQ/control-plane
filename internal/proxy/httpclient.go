@@ -31,28 +31,44 @@ type sdkErrorBody struct {
 	Message string `json:"message"`
 }
 
+// unexpectedStatusError carries the agent's HTTP status code so the transport
+// layer (errkind) can recover the agent's semantics. Unwrap exposes
+// ErrUnexpectedStatus, so existing errors.Is checks keep working.
+type unexpectedStatusError struct {
+	code int
+	msg  string
+}
+
+func (e *unexpectedStatusError) Error() string  { return e.msg }
+func (e *unexpectedStatusError) Unwrap() error   { return ErrUnexpectedStatus }
+func (e *unexpectedStatusError) HTTPStatus() int { return e.code }
+
 // formatUnexpectedStatus reads a bounded preview of the response body and
-// returns an error that surfaces the SDK's structured {error,message} payload
-// when present, or the raw body snippet otherwise. Bytes consumed here are
-// lost for further processing, so callers must only invoke this on the
-// non-success branch.
+// returns an [unexpectedStatusError] that surfaces the SDK's structured
+// {error,message} payload when present (or the raw snippet otherwise) and
+// carries the agent's HTTP status code. Bytes consumed here are lost for
+// further processing, so callers must only invoke this on the non-success branch.
 func formatUnexpectedStatus(resp *http.Response) error {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
-	if len(body) == 0 {
-		return fmt.Errorf("%w: %d", ErrUnexpectedStatus, resp.StatusCode)
-	}
-	var e sdkErrorBody
-	if err := json.Unmarshal(body, &e); err == nil && (e.Error != "" || e.Message != "") {
-		switch {
-		case e.Error != "" && e.Message != "":
-			return fmt.Errorf("%w: %d %s: %s", ErrUnexpectedStatus, resp.StatusCode, e.Error, e.Message)
-		case e.Error != "":
-			return fmt.Errorf("%w: %d %s", ErrUnexpectedStatus, resp.StatusCode, e.Error)
-		default:
-			return fmt.Errorf("%w: %d %s", ErrUnexpectedStatus, resp.StatusCode, e.Message)
+	base := ErrUnexpectedStatus.Error()
+
+	msg := fmt.Sprintf("%s: %d", base, resp.StatusCode)
+	if len(body) > 0 {
+		var e sdkErrorBody
+		if err := json.Unmarshal(body, &e); err == nil && (e.Error != "" || e.Message != "") {
+			switch {
+			case e.Error != "" && e.Message != "":
+				msg = fmt.Sprintf("%s: %d %s: %s", base, resp.StatusCode, e.Error, e.Message)
+			case e.Error != "":
+				msg = fmt.Sprintf("%s: %d %s", base, resp.StatusCode, e.Error)
+			default:
+				msg = fmt.Sprintf("%s: %d %s", base, resp.StatusCode, e.Message)
+			}
+		} else {
+			msg = fmt.Sprintf("%s: %d: %s", base, resp.StatusCode, string(body))
 		}
 	}
-	return fmt.Errorf("%w: %d: %s", ErrUnexpectedStatus, resp.StatusCode, string(body))
+	return &unexpectedStatusError{code: resp.StatusCode, msg: msg}
 }
 
 // doDelete performs a DELETE request [statuses: 200, 204].

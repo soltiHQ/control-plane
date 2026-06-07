@@ -55,7 +55,7 @@ func (p *httpProxyV1) ListTasks(ctx context.Context, f TaskFilter) (*proxyv1.Lis
 
 	var out taskv1.ListTasksResponse
 	if err := doProtoJSONGet(ctx, p.client, u.String(), &out); err != nil {
-		return nil, err
+		return nil, agentError(ErrListTasks, err)
 	}
 
 	tasks := make([]proxyv1.Task, len(out.GetTasks()))
@@ -81,7 +81,7 @@ func (p *httpProxyV1) ApplyTask(ctx context.Context, sub TaskSubmission) (string
 	// ApplyTaskResponse carries the TaskId now running in the slot.
 	var out taskv1.ApplyTaskResponse
 	if err := doProtoJSONPutDecoding(ctx, p.client, u.String(), &taskv1.ApplyTaskRequest{Spec: sub.Spec}, &out); err != nil {
-		return "", err
+		return "", agentError(ErrApplyTask, err)
 	}
 	taskID := out.GetTaskId()
 	if taskID == "" {
@@ -98,7 +98,7 @@ func (p *httpProxyV1) GetTask(ctx context.Context, taskID string) (*proxyv1.GetT
 
 	var out taskv1.GetTaskStatusResponse
 	if err := doProtoJSONGet(ctx, p.client, u.String(), &out); err != nil {
-		return nil, err
+		return nil, agentError(ErrGetTask, err)
 	}
 
 	var task *proxyv1.Task
@@ -117,7 +117,7 @@ func (p *httpProxyV1) ListTaskRuns(ctx context.Context, taskID string) (*proxyv1
 
 	var out taskv1.ListTaskRunsResponse
 	if err := doProtoJSONGet(ctx, p.client, u.String(), &out); err != nil {
-		return nil, err
+		return nil, agentError(ErrListTaskRuns, err)
 	}
 
 	runs := make([]proxyv1.TaskRun, len(out.GetRuns()))
@@ -147,7 +147,10 @@ func (p *httpProxyV1) DeleteTask(ctx context.Context, taskID string) error {
 		return fmt.Errorf("%w: %v", ErrBadEndpointURL, err)
 	}
 
-	return doDelete(ctx, p.client, u.String())
+	if err := doDelete(ctx, p.client, u.String()); err != nil {
+		return agentError(ErrDeleteTask, err)
+	}
+	return nil
 }
 
 // StreamTaskLogs consumes the agent's SSE stream at
@@ -176,7 +179,7 @@ func (p *httpProxyV1) StreamTaskLogs(ctx context.Context, taskID string) (<-chan
 	if resp.StatusCode != http.StatusOK {
 		err := formatUnexpectedStatus(resp)
 		_ = resp.Body.Close()
-		return nil, fmt.Errorf("%w: %v", ErrStreamTaskLogs, err)
+		return nil, agentError(ErrStreamTaskLogs, err)
 	}
 
 	ch := make(chan *taskv1.StreamTaskLogsResponse, 64)
