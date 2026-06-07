@@ -74,7 +74,29 @@ func New(ctx context.Context, cfg config.Config, logger zerolog.Logger) (*App, e
 		logger.Info().Msg("bootstrap skipped: this replica is a follower; leader seeds shared state")
 	}
 
-	proxyPool := proxy.NewPool()
+	// TLS: one server config for all listeners (HTTP, HTTP-discovery, gRPC) and
+	// one client config for outbound calls to agents. Both opt-in (nil = plaintext).
+	serverTLS, err := cfg.TLS.Server.Build()
+	if err != nil {
+		closeOnError(raftShutdown, eventHub)
+		return nil, err
+	}
+	clientTLS, err := cfg.TLS.Client.Build()
+	if err != nil {
+		closeOnError(raftShutdown, eventHub)
+		return nil, err
+	}
+
+	// Surface the actual state of BOTH directions so an operator can't silently
+	// half-enable TLS (e.g. server on, but CP→agent still plaintext).
+	logger.Info().
+		Bool("server_tls", cfg.TLS.Server.Enabled()).
+		Bool("server_mtls", cfg.TLS.Server.ClientCAFile != "").
+		Bool("client_tls", cfg.TLS.Client.Enabled()).
+		Bool("client_mtls", cfg.TLS.Client.CertFile != "").
+		Msg("tls configuration")
+
+	proxyPool := proxy.NewPool(clientTLS)
 
 	htmx.Configure(cfg.Triggers)
 
@@ -101,7 +123,9 @@ func New(ctx context.Context, cfg config.Config, logger zerolog.Logger) (*App, e
 	}
 
 	mainHandler := buildMainHandler(cfg, logger, svc, authModel, proxyPool, eventHub, leadership)
-	httpRunner, err := httpserver.New(cfg.HTTP, logger, mainHandler)
+	httpCfg := cfg.HTTP
+	httpCfg.TLSConfig = serverTLS
+	httpRunner, err := httpserver.New(httpCfg, logger, mainHandler)
 	if err != nil {
 		proxyPool.Close()
 		closeOnError(raftShutdown, eventHub)
@@ -109,14 +133,16 @@ func New(ctx context.Context, cfg config.Config, logger zerolog.Logger) (*App, e
 	}
 
 	discoveryHandler := buildDiscoveryHandler(logger, svc.agent, eventHub, leadership, addrPort(cfg.HTTPDiscovery.Addr), authModel.Limiter)
-	httpDiscoveryRunner, err := httpserver.New(cfg.HTTPDiscovery, logger, discoveryHandler)
+	discoveryCfg := cfg.HTTPDiscovery
+	discoveryCfg.TLSConfig = serverTLS
+	httpDiscoveryRunner, err := httpserver.New(discoveryCfg, logger, discoveryHandler)
 	if err != nil {
 		proxyPool.Close()
 		closeOnError(raftShutdown, eventHub)
 		return nil, err
 	}
 
-	grpcSrv := buildGRPCServer(logger, svc.agent, eventHub, leadership, authModel.Limiter)
+	grpcSrv := buildGRPCServer(logger, svc.agent, eventHub, leadership, authModel.Limiter, serverTLS)
 	grpcRunner, err := grpcserver.New(cfg.GRPC, logger, grpcSrv)
 	if err != nil {
 		proxyPool.Close()

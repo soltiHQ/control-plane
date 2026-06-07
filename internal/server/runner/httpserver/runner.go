@@ -87,12 +87,20 @@ func (r *Runner) Start(_ context.Context) error {
 	}
 	close(r.ready)
 
+	tlsEnabled := r.cfg.TLSConfig != nil
 	r.logger.Info().
 		Str("runner", r.cfg.Name).
 		Str("addr", r.cfg.Addr).
+		Bool("tls", tlsEnabled).
 		Msg("http server listening")
 
-	err = r.srv.Serve(ln)
+	if tlsEnabled {
+		r.srv.TLSConfig = r.cfg.TLSConfig
+		// Cert/key come from TLSConfig.Certificates, so the file args are empty.
+		err = r.srv.ServeTLS(ln, "", "")
+	} else {
+		err = r.srv.Serve(ln)
+	}
 	if err == nil || errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}

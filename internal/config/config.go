@@ -20,12 +20,21 @@ import (
 	"github.com/soltiHQ/control-plane/internal/server/runner/lifecycle"
 	syncrunner "github.com/soltiHQ/control-plane/internal/server/runner/sync"
 	"github.com/soltiHQ/control-plane/internal/transport/http/middleware"
+	"github.com/soltiHQ/control-plane/internal/transport/tlsconf"
 	"github.com/soltiHQ/control-plane/internal/uikit/htmx"
 )
 
 const (
 	envPrefix = "SOLTI"
 )
+
+// TLSConfig groups the control-plane's TLS settings: the server identity used by
+// the HTTP and gRPC listeners, and the client identity used when dialing agents.
+// Both are opt-in — empty means plaintext.
+type TLSConfig struct {
+	Server tlsconf.ServerConfig `yaml:"server" envconfig:"SERVER"`
+	Client tlsconf.ClientConfig `yaml:"client" envconfig:"CLIENT"`
+}
 
 // Config holds the full application configuration.
 type Config struct {
@@ -40,6 +49,7 @@ type Config struct {
 	CORS          middleware.CORSConfig    `yaml:"cors"           envconfig:"CORS"`
 	Cluster       cluster.Config           `yaml:"cluster"        envconfig:"CLUSTER"`
 	Streams       middleware.StreamsConfig `yaml:"streams"        envconfig:"STREAMS"`
+	TLS           TLSConfig                `yaml:"tls"            envconfig:"TLS"`
 }
 
 // Default returns the default development configuration.
@@ -71,6 +81,12 @@ func (c Config) Validate() error {
 	}
 	if err := c.CORS.Validate(); err != nil {
 		return fmt.Errorf("config.cors: %w", err)
+	}
+	if err := c.TLS.Server.Validate(); err != nil {
+		return fmt.Errorf("config.tls.server: %w", err)
+	}
+	if err := c.TLS.Client.Validate(); err != nil {
+		return fmt.Errorf("config.tls.client: %w", err)
 	}
 	return nil
 }

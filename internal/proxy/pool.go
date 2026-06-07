@@ -12,6 +12,7 @@ import (
 
 	"github.com/soltiHQ/control-plane/domain/enum"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -38,10 +39,26 @@ type Pool struct {
 
 	httpCli   *http.Client
 	grpcConns map[string]*grpc.ClientConn
+	grpcCreds credentials.TransportCredentials
 }
 
 // NewPool creates a Pool with a configured HTTP transport.
-func NewPool() *Pool {
+//
+// clientTLS configures outbound TLS to agents (CP-as-client). When nil the pool
+// stays plaintext: HTTP uses a minimal TLS-1.2 config (system roots, only
+// engaged for https:// endpoints) and gRPC dials insecurely — preserving the
+// pre-TLS behavior.
+func NewPool(clientTLS *tls.Config) *Pool {
+	httpTLS := clientTLS
+	if httpTLS == nil {
+		httpTLS = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+
+	creds := credentials.TransportCredentials(insecure.NewCredentials())
+	if clientTLS != nil {
+		creds = credentials.NewTLS(clientTLS)
+	}
+
 	return &Pool{
 		httpCli: &http.Client{
 			Transport: &http.Transport{
@@ -49,13 +66,14 @@ func NewPool() *Pool {
 					Timeout:   5 * time.Second,
 					KeepAlive: 30 * time.Second,
 				}).DialContext,
-				TLSClientConfig:     &tls.Config{MinVersion: tls.VersionTLS12},
+				TLSClientConfig:     httpTLS,
 				IdleConnTimeout:     90 * time.Second,
 				MaxIdleConns:        100,
 				MaxIdleConnsPerHost: 10,
 			},
 		},
 		grpcConns: make(map[string]*grpc.ClientConn),
+		grpcCreds: creds,
 	}
 }
 
@@ -112,7 +130,7 @@ func (p *Pool) grpcConn(endpoint string) (*grpc.ClientConn, error) {
 	}
 	conn, err := grpc.NewClient(
 		target,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(p.grpcCreds),
 		// Align with solti-api's MAX_REQUEST_BYTES so a 5 MiB script body
 		// (base64 → ~7 MiB on the wire) goes through cleanly. Without this
 		// the agent's SubmitTaskResponse would still fit, but any response

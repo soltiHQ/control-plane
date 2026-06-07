@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	discoverv1 "github.com/soltiHQ/control-plane/api/gen/solti/discover/v1"
 	taskv1 "github.com/soltiHQ/control-plane/api/gen/solti/task/v1"
@@ -220,7 +222,7 @@ func addrPort(addr string) int {
 	return n
 }
 
-func buildGRPCServer(logger zerolog.Logger, agentSVC *agent.Service, eventHub *event.Hub, leadership cluster.Leadership, limiter *ratelimit.Limiter) *grpc.Server {
+func buildGRPCServer(logger zerolog.Logger, agentSVC *agent.Service, eventHub *event.Hub, leadership cluster.Leadership, limiter *ratelimit.Limiter, serverTLS *tls.Config) *grpc.Server {
 	// Write methods (must run on leader). Sync is the only agent-facing
 	// mutation; everything else is pure read.
 	writeMethods := map[string]struct{}{
@@ -228,23 +230,28 @@ func buildGRPCServer(logger zerolog.Logger, agentSVC *agent.Service, eventHub *e
 	}
 	isWrite := func(full string) bool { _, ok := writeMethods[full]; return ok }
 
+	opts := []grpc.ServerOption{
+		grpc.ChainUnaryInterceptor(
+			interceptor.UnaryRecovery(logger),
+			interceptor.UnaryRequestID(),
+			interceptor.UnaryLogger(logger),
+			interceptor.UnaryRateLimit(limiter),
+			interceptor.UnaryLeader(leadership, interceptor.LeaderOptions{IsWrite: isWrite}),
+		),
+		grpc.ChainStreamInterceptor(
+			interceptor.StreamRecovery(logger),
+			interceptor.StreamRequestID(),
+			interceptor.StreamLogger(logger),
+			interceptor.StreamRateLimit(limiter),
+			interceptor.StreamLeader(leadership, interceptor.LeaderOptions{IsWrite: isWrite}),
+		),
+	}
+	if serverTLS != nil {
+		opts = append(opts, grpc.Creds(credentials.NewTLS(serverTLS)))
+	}
+
 	var (
-		srv = grpc.NewServer(
-			grpc.ChainUnaryInterceptor(
-				interceptor.UnaryRecovery(logger),
-				interceptor.UnaryRequestID(),
-				interceptor.UnaryLogger(logger),
-				interceptor.UnaryRateLimit(limiter),
-				interceptor.UnaryLeader(leadership, interceptor.LeaderOptions{IsWrite: isWrite}),
-			),
-			grpc.ChainStreamInterceptor(
-				interceptor.StreamRecovery(logger),
-				interceptor.StreamRequestID(),
-				interceptor.StreamLogger(logger),
-				interceptor.StreamRateLimit(limiter),
-				interceptor.StreamLeader(leadership, interceptor.LeaderOptions{IsWrite: isWrite}),
-			),
-		)
+		srv           = grpc.NewServer(opts...)
 		grpcDiscovery = handler.NewGRPCDiscovery(logger, agentSVC, eventHub)
 	)
 	discoverv1.RegisterDiscoverServiceServer(srv, grpcDiscovery)

@@ -17,5 +17,31 @@ single `Default()` constructor for development use:
 
 ## Loading from external sources
 
-Out of scope for now. When needed (env vars, YAML, flags), unmarshal into
-`config.Config` and let `withDefaults()` fill gaps.
+`Load()` reads in priority order: `Default()` → YAML file (`--config` / `CONFIG_PATH`)
+→ env (`SOLTI_` prefix), then enforces `Config.Validate()`.
+
+## TLS
+
+`config.TLS` is one shared block applied to **all** transports (mirrors the SDK's
+`solti-tls`). Both halves are opt-in — empty means plaintext.
+
+- `tls.server` (`cert_file`, `key_file`, `client_ca_file`) — the CP's serving
+  identity for the HTTP, HTTP-discovery and gRPC listeners. Setting
+  `client_ca_file` turns on **mTLS** (client cert required).
+- `tls.client` (`ca_file`, `cert_file`, `key_file`) — the CP as a client when
+  dialing agents (proxy). `ca_file` verifies agent certs; `cert_file`/`key_file`
+  present a client cert for mTLS.
+
+```yaml
+tls:
+  server:
+    cert_file: /etc/solti/tls/server.crt
+    key_file:  /etc/solti/tls/server.key
+    client_ca_file: /etc/solti/tls/agents-ca.crt   # optional → mTLS
+  client:
+    ca_file:   /etc/solti/tls/agents-ca.crt
+    cert_file: /etc/solti/tls/cp-client.crt        # optional → mTLS
+    key_file:  /etc/solti/tls/cp-client.key
+```
+
+Env equivalents: `SOLTI_TLS_SERVER_CERT_FILE`, `SOLTI_TLS_CLIENT_CA_FILE`, etc.
