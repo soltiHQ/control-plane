@@ -1,5 +1,3 @@
-// Package htmx provides HTMX response helpers, named trigger events,
-// and configurable polling intervals for the control-plane UI.
 package htmx
 
 import "net/http"
@@ -34,6 +32,17 @@ type Config struct {
 	SpecDetailRefresh   string `yaml:"spec_detail_refresh"`
 }
 
+// cfg is a process-wide singleton holding the active polling intervals.
+//
+// Contract:
+//
+//	 Written once at startup, read-only while serving - concurrent Get/Refresh reads are race-free without a lock:
+//
+//		startup (1 goroutine) │ serving (N goroutines)
+//		 Configure(cfg)    ───┤── Get*Refresh(cfg) ──► read
+//		   write           ───┤── Get*Refresh(cfg) ──► read
+//		      ▲               │          ▲
+//		  only here           │     reads only
 var cfg = defaultConfig()
 
 func defaultConfig() Config {
@@ -53,7 +62,10 @@ func defaultConfig() Config {
 	}
 }
 
-// Configure overrides default polling intervals. Must be called before server starts.
+// Configure overrides default polling interval.
+//
+// Called once at startup.
+// Empty fields keep their defaults.
 func Configure(c Config) {
 	if c.DashboardRefresh != "" {
 		cfg.DashboardRefresh = c.DashboardRefresh

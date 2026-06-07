@@ -104,7 +104,7 @@ templ Identity(u restv1.User, p policy.UserDetail) {
 			"Delete user",
 			"Are you sure you want to delete "+u.Subject+"? This action cannot be undone.",
 			"Delete",
-			routepath.ApiUserCrudOp(u.ID),
+			routepath.ApiUserByID(u.ID),
 			modal.MethodDelete,
 			modal.VariantDanger,
 		)
@@ -115,7 +115,7 @@ templ Identity(u restv1.User, p policy.UserDetail) {
 			@modal.FormModal(
 				"edit-user",
 				"Edit user",
-				routepath.ApiUserCrudOp(u.ID),
+				routepath.ApiUserByID(u.ID),
 				"PUT",
 				editFields(u),
 				editSelects(u),
@@ -124,7 +124,7 @@ templ Identity(u restv1.User, p policy.UserDetail) {
 			@modal.FormModal(
 				"edit-user",
 				"Edit user",
-				routepath.ApiUserCrudOp(u.ID),
+				routepath.ApiUserByID(u.ID),
 				"PUT",
 				editFields(u),
 				nil,

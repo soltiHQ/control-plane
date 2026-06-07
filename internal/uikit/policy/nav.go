@@ -6,10 +6,6 @@ import "github.com/soltiHQ/control-plane/internal/auth/identity"
 //
 // It encapsulates which top-level menu items the authenticated user may see
 // (Show* flags) and which create-actions are available (Can* flags).
-//
-// Nav is computed once per request via BuildNav and threaded into every
-// page template so that the sidebar/header can render conditionally
-// without importing the auth or permission packages directly.
 type Nav struct {
 	ShowUsers  bool
 	ShowTasks  bool

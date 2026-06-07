@@ -1,11 +1,3 @@
-// Package routepath declares all URL constants used by the control-plane UI and API.
-//
-// Constants are split into two groups:
-//   - Page* - browser-facing paths served by the UI handler (HTML pages).
-//   - Api*  - JSON/REST endpoints served by the API handler.
-//
-// Path-builder functions (var block) append an entity ID to a base path, keeping URL construction consistent
-// and typo-free across handlers, templates, and Alpine.js fetch calls.
 package routepath
 
 import "net/url"
@@ -45,30 +37,35 @@ const (
 	ApiEventStream     = "/api/v1/events/stream"
 )
 
-var (
-	PageUserInfoByID     = func(id string) string { return PageUserInfo + id }
-	ApiUserCrudOp        = func(id string) string { return ApiUser + id }
-	ApiUserEnable        = func(id string) string { return ApiUser + id + "/enable" }
-	ApiUserDisable       = func(id string) string { return ApiUser + id + "/disable" }
-	ApiUserSessions      = func(id string) string { return ApiUser + id + "/sessions" }
-	ApiUserPassword      = func(id string) string { return ApiUser + id + "/password" }
-	ApiUserRevokeSession = func(id string) string { return ApiSession + id + "/revoke" }
+// Users.
 
-	PageAgentInfoByID = func(id string) string { return PageAgentInfo + id }
-	ApiAgentByID      = func(id string) string { return ApiAgent + id }
-	ApiAgentLabels    = func(id string) string { return ApiAgent + id + "/labels" }
-	ApiAgentTasks     = func(id string) string { return ApiAgent + id + "/tasks" }
-	ApiAgentTaskLogs  = func(agentID, taskID string) string {
-		return ApiAgent + agentID + "/tasks/" + taskID + "/logs/stream"
-	}
+func PageUserInfoByID(id string) string     { return PageUserInfo + id }
+func ApiUserByID(id string) string          { return ApiUser + id }
+func ApiUserEnable(id string) string        { return ApiUser + id + "/enable" }
+func ApiUserDisable(id string) string       { return ApiUser + id + "/disable" }
+func ApiUserSessions(id string) string      { return ApiUser + id + "/sessions" }
+func ApiUserPassword(id string) string      { return ApiUser + id + "/password" }
+func ApiUserRevokeSession(id string) string { return ApiSession + id + "/revoke" }
 
-	PageSpecInfoByID   = func(id string) string { return PageSpecInfo + id }
-	PageSpecEditByID   = func(id string) string { return PageSpecEdit + id }
-	ApiSpecByID        = func(id string) string { return ApiSpec + id }
-	ApiSpecDeploy      = func(id string) string { return ApiSpec + id + "/deploy" }
-	ApiSpecSync        = func(id string) string { return ApiSpec + id + "/sync" }
-	ApiSpecForceDelete = func(id string) string { return ApiSpec + id + "/force" }
-)
+// Agents.
+
+func PageAgentInfoByID(id string) string { return PageAgentInfo + id }
+func ApiAgentByID(id string) string      { return ApiAgent + id }
+func ApiAgentLabels(id string) string    { return ApiAgent + id + "/labels" }
+func ApiAgentTasks(id string) string     { return ApiAgent + id + "/tasks" }
+
+func ApiAgentTaskLogs(agentID, taskID string) string {
+	return ApiAgent + agentID + "/tasks/" + taskID + "/logs/stream"
+}
+
+// Specs.
+
+func PageSpecInfoByID(id string) string   { return PageSpecInfo + id }
+func PageSpecEditByID(id string) string   { return PageSpecEdit + id }
+func ApiSpecByID(id string) string        { return ApiSpec + id }
+func ApiSpecDeploy(id string) string      { return ApiSpec + id + "/deploy" }
+func ApiSpecSync(id string) string        { return ApiSpec + id + "/sync" }
+func ApiSpecForceDelete(id string) string { return ApiSpec + id + "/force" }
 
 // CursorURL appends optional cursor and query parameters to a base API path.
 func CursorURL(base, cursor, q string) string {

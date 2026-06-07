@@ -12,7 +12,7 @@ templ Detail(nav policy.Nav, userID string) {
 	@layout.DetailPage("User", "users", nav,
 		layout.DetailPanel{
 			ID:         "user-identity",
-			URL:        routepath.ApiUserCrudOp(userID),
+			URL:        routepath.ApiUserByID(userID),
 			Trigger:    htmx.LoadAndPoll(htmx.GetUserDetailRefresh(), htmx.UserUpdate),
 			PreloadMsg: "Details Loading...",
 		},

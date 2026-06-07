@@ -5,9 +5,12 @@ import (
 	"time"
 )
 
-// Relative formats a timestamp as a human-readable relative time string
-// (e.g. "just now", "5m ago", "2h ago", "3d ago").
+// Relative formats a timestamp as a human-readable relative time string.
+// (e.g. "—", "just now", "5m ago", "2h ago", "3d ago").
 func Relative(t time.Time) string {
+	if t.IsZero() {
+		return "—"
+	}
 	d := time.Since(t)
 	switch {
 	case d < time.Minute:
@@ -45,10 +48,12 @@ func Session(t time.Time) string {
 	return t.Format("Jan 02 2006, 15:04")
 }
 
-// Uptime formats a duration in seconds as a compact uptime string
-// (e.g. "30s", "5m", "2h 15m", "3d 4h").
+// Uptime formats a duration in seconds as a compact uptime string.
+// (e.g. "—", "30s", "5m", "2h 15m", "3d 4h").
 func Uptime(s int64) string {
 	switch {
+	case s < 0:
+		return "—"
 	case s < 60:
 		return fmt.Sprintf("%ds", s)
 	case s < 3600:
