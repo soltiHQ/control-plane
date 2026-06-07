@@ -1,117 +1,96 @@
 # internal/transport
-Transport layer — protocol-specific infrastructure that is placed between the network and the domain handlers.  
-gRPC and HTTP share a common context layer (`httpctx`, `transportctx`) so handlers stay protocol-agnostic where possible.
+
+Transport layer - protocol-specific wiring between the network and the domain handlers. 
+HTTP and gRPC are kept symmetric where the protocols allow, and share two transport-agnostic packages so handlers stay protocol-neutral:
+- `internal/transportctx` (sibling, outside this tree to avoid import cycles) – identity, request id, and the mutable error slot.
+- `errkind` - the single error → category classifier consumed by both transports.
 
 ## Package map
+
 ```text
 transport/
 ├── grpc/
-│   ├── interceptor/   unary server interceptors (auth, requestID, logger, recovery)
-│   └── status/        domain-error → gRPC-code mapping + requestID detail attachment
+│   ├── interceptor/   unary + stream interceptors
+│   └── status/        Kind → gRPC code + requestID detail
 │
 ├── http/
-│   ├── middleware/     HTTP middleware pipeline (auth, negotiate, requestID, logger, recovery, CORS)
-│   ├── responder/     Responder interface + HTML / JSON implementations
-│   ├── response/      one-call status helpers (OK, NotFound, Unauthorized …)
-│   ├── route/         middleware chaining helpers (BaseMW, PermMW, Chain)
-│   ├── apimap/v1/     domain model → REST v1 DTO mappers
-│   ├── cookie/        auth cookie management (set / delete / read)
-│   └── ratelimitkey/  composite key builder for login rate-limiting
+│   ├── middleware/    pipeline 
+│   ├── responder/     Responder interface + JSON / HTML implementations
+│   ├── response/      one-call helpers (OK, NotFound, …) + FromError
+│   └── route/         middleware chaining + REST dispatch (Resource, Router)
 │
-└── httpctx/           HTTP-specific request context (Responder, RenderMode)
+├── httpctx/           HTTP-only request context (Responder, RenderMode)
+├── tlsconf/           PEM config → *tls.Config (server + client, mTLS)
+└── errkind/           domain/agent error → Kind (shared by both transports)
 ```
 
 ## Request lifecycle
+
 ### HTTP
+
 ```text
   Browser / API client
         │
         ▼
-  ┌─ middleware chain ───────────────────────────────────┐
-  │  RequestID → Auth → Negotiate → Logger → Recovery    │
-  └──────────────────────────────────────────────────────┘
-        │
-        │  context carries: requestID, identity, responder, renderMode, errorSlot
-        ▼
-  handler/api.go  or  handler/ui.go
-        │
-        ├─ response.OK(w, r, mode, &View{Data: dto, Component: tmpl})
-        │       │                          │              │
-        │       ▼                          ▼              ▼
-        │   responder from ctx       JSON path       HTML path
-        │       │
-        │       ├── JSONResponder  →  json.Marshal(dto) + security headers
-        │       └── HTMLResponder  →  templ.Render(tmpl) + CSP headers
-        │
-        └─ on error: response.NotFound / Unauthorized / …
-                 │
-                 ├─ same dual-format pattern (JSON body + error page)
-                 └─ sets transportctx error slot → Logger middleware appends to log line
+  RequestID   ── installs request id + error slot (outermost, owns the slot)
+   Logger     ── reads the slot back after the handler returns
+    Negotiate ── picks the Responder (JSON vs HTML), stores it in ctx
+     
+  Auth / RequirePermission (per route)
+    handler/api.go | ui.go
+        ├─ success → response.OK(w, r, mode, &View{Data: dto, Component: tmpl})
+        │              └─ Responder from ctx → JSON (json.Marshal + sec headers)
+        │                                    or HTML (templ.Render + CSP)
+        └─ error   → response.FromError(w, r, mode, err)   ← classifies via errkind
+                       └─ sets the error slot → Logger appends it to the log line
 ```
 
+`RenderMode` (full page vs HTMX fragment) is a pure function of the request header, derived on demand via `httpctx.ModeFromRequest(r)`: 
+only the negotiated `Responder` is stored in context.
+
 ### gRPC
+
 ```text
   gRPC client
-        │
         ▼
-  ┌─ interceptor chain ──────────────────────────────────┐
-  │  UnaryRequestID → UnaryAuth → UnaryLogger → Recovery │
-  └──────────────────────────────────────────────────────┘
-        │
-        │  context carries: requestID, identity, errorSlot
+  UnaryRecovery → UnaryRequestID → UnaryLogger → UnaryRateLimit → UnaryLeader
+        │   (UnaryAuth / UnaryRequirePermission exist but are not chained yet)
         ▼
   handler/discovery.go (GRPCDiscovery)
         │
         ├─ success → proto response
-        └─ error   → status.FromError(ctx, err)  or  status.Errorf(ctx, code, msg)
-                          │
-                          ├─ maps domain errors to gRPC codes
-                          ├─ attaches requestID as errdetails.RequestInfo
-                          └─ sets transportctx error slot → UnaryLogger appends to log line
+        └─ error   → status.FromError(ctx, err)            ← classifies via errkind
+                       ├─ Kind → gRPC code + stable message
+                       ├─ attaches requestID as errdetails.RequestInfo
+                       └─ sets the error slot → UnaryLogger appends it
 ```
 
-## Format negotiation (HTTP)
-The `Negotiate` middleware decides **who renders** and **how**:
+## Error model (shared)
+
+A domain error maps to the same client-facing outcome on both transports because classification lives in **one** place: `errkind.Classify(err) → Kind`. 
+Each transport only maps `Kind` to its wire form.
+
 ```text
-  Request path          Responder       RenderMode
-  ──────────────        ──────────      ──────────
-  /api/v1/*             JSONResponder   (ignored)
-  /* + HX-Request       HTMLResponder   RenderBlock  (HTMX fragment)
-  /*                    HTMLResponder   RenderPage   (full page)
+                                    ┌─────────────────────────────┐
+   domain sentinels ──────────────► │  errkind.Classify → Kind    │ ◄─── proxy AgentError
+   (auth.*, storage.*, context.*)   │  (single source of truth)   │      (ErrorKind() tag)
+                                    └──────────────┬──────────────┘
+                                                   │
+                            ┌──────────────────────┴───────────────────────┐
+                            ▼                                              ▼
+               http/response.FromError → status + helper        grpc/status.FromError → codes.*
 ```
 
-Handlers read `httpctx.Mode(ctx)` to pick between a full page layout
-and a standalone HTMX fragment. The selected `Responder` is stored in
-context; `response.*` helpers pull it out and call `Respond()`.
+Errors coming **from an agent** through the proxy are translated at the boundary:
+`internal/proxy` is an anti-corruption layer that reads the agent's gRPC code / HTTP status and tags the error with a `Kind` (`AgentError.ErrorKind()`). 
+Downstream code never sniffs gRPC/HTTP details - it just calls `errkind.Classify`, which trusts the tag. 
+`NotFound` from an agent surfaces to the user as 404 / NotFound.
 
-## Error mapping (gRPC)
-`grpc/status` converts domain sentinel errors to appropriate gRPC codes:
-```text
-  Domain error                  →  gRPC code
-  ────────────                     ─────────
-  auth.ErrInvalidCredentials    →  Unauthenticated
-  auth.ErrUnauthorized          →  PermissionDenied
-  auth.ErrInvalidRequest        →  InvalidArgument
-  storage.ErrNotFound           →  NotFound
-  storage.ErrAlreadyExists      →  AlreadyExists
-  storage.ErrConflict           →  Aborted
-  context.Canceled              →  Canceled
-  context.DeadlineExceeded      →  DeadlineExceeded
-  (anything else)               →  Internal
-```
+## TLS
 
-Every error response includes `requestID` as `errdetails.RequestInfo`
-for client-side log correlation.
+`tlsconf` turns PEM file config into `*tls.Config`; the shared `config.TLS` block drives it. 
+Both halves are opt-in (empty = plaintext):
+- `tls.server` → the CP's serving identity for the HTTP, HTTP-discovery, and gRPC listeners (`client_ca_file` enables mTLS - client cert required).
+- `tls.client` → the CP as a client when dialing agents (proxy); verifies agent certs and optionally presents a client cert.
 
-## DTO mapping (HTTP)
-`apimap/v1` contains pure functions that convert domain models into
-versioned REST DTOs (`api/rest/v1`):
-```text
-  model.Agent       →  Agent(a)         →  restv1.Agent
-  model.Spec        →  Spec(ts)         →  restv1.Spec
-  model.Rollout     →  RolloutEntry(ss) →  restv1.RolloutEntry
-  (Spec + states)   →  RolloutSpec(…)   →  restv1.RolloutSpec
-  model.User        →  User(u)          →  restv1.User
-  model.Role        →  Role(r)          →  restv1.Role
-  model.Session     →  Session(s)       →  restv1.Session
-```
+Applied uniformly: one server `*tls.Config` for all listeners, one client config for the proxy pool.
