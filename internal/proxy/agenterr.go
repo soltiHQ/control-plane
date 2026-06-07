@@ -21,8 +21,10 @@ type AgentError struct {
 	err  error
 }
 
-func (e *AgentError) Error() string           { return e.err.Error() }
-func (e *AgentError) Unwrap() error            { return e.err }
+func (e *AgentError) Error() string { return e.err.Error() }
+
+func (e *AgentError) Unwrap() error { return e.err }
+
 func (e *AgentError) ErrorKind() errkind.Kind { return e.kind }
 
 // agentError wraps an error from an agent call: it keeps the op sentinel and the

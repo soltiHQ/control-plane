@@ -39,8 +39,10 @@ type unexpectedStatusError struct {
 	msg  string
 }
 
-func (e *unexpectedStatusError) Error() string  { return e.msg }
-func (e *unexpectedStatusError) Unwrap() error   { return ErrUnexpectedStatus }
+func (e *unexpectedStatusError) Error() string { return e.msg }
+
+func (e *unexpectedStatusError) Unwrap() error { return ErrUnexpectedStatus }
+
 func (e *unexpectedStatusError) HTTPStatus() int { return e.code }
 
 // formatUnexpectedStatus reads a bounded preview of the response body and
