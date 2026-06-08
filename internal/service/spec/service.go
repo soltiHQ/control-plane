@@ -93,36 +93,29 @@ func (s *Service) Upsert(ctx context.Context, ts *model.Spec, expectedVersion in
 		return storage.ErrInvalidArgument
 	}
 
-	old, err := s.store.GetSpec(ctx, ts.ID())
+	var runtimeChanged bool
+	err := s.store.WithTx(ctx, func(tx storage.Storage) error {
+		old, err := tx.GetSpec(ctx, ts.ID())
+		if err != nil {
+			return err
+		}
+
+		if old.DeletionRequested() {
+			return storage.ErrInvalidArgument
+		}
+
+		if expectedVersion > 0 && old.Version() != expectedVersion {
+			return &ConflictError{Expected: expectedVersion, Actual: old.Version()}
+		}
+		runtimeChanged = !old.RuntimeEquals(ts)
+
+		ts.IncrementVersion()
+		if runtimeChanged {
+			ts.BumpGeneration()
+		}
+		return tx.UpsertSpec(ctx, ts)
+	})
 	if err != nil {
-		return err
-	}
-
-	// A spec that has been marked for deletion is a tombstone:
-	// the sync runner is in the middle of tearing it down on agents, and the finalizer is waiting to drop the row.
-	// Any further Upsert would resurrect the runtime state on top of an in-flight uninstallation chaos.
-	// Reject; the only legal transition is "finalized and gone".
-	if old.DeletionRequested() {
-		return storage.ErrInvalidArgument
-	}
-
-	// Optimistic-concurrency check.
-	// expectedVersion == 0 opts out;
-	// interactive UI must always pass what the user's load() returned.
-	if expectedVersion > 0 && old.Version() != expectedVersion {
-		return &ConflictError{Expected: expectedVersion, Actual: old.Version()}
-	}
-
-	// The handler hands us a *model.Spec mutated from the current stored instance.
-	// `old` and `ts` can share pointer-equal kindConfig maps.
-	// Compare before bumping version/generation: RuntimeEquals are inexpensive and honest about which fields count as "runtime".
-	runtimeChanged := !old.RuntimeEquals(ts)
-
-	ts.IncrementVersion()
-	if runtimeChanged {
-		ts.BumpGeneration()
-	}
-	if err := s.store.UpsertSpec(ctx, ts); err != nil {
 		return err
 	}
 
