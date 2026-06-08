@@ -98,6 +98,26 @@ func (s *Store) DeleteAgent(ctx context.Context, id string) error {
 	return s.applyOp(&raftv1.Op{Op: &raftv1.Op_AgentDelete{AgentDelete: id}})
 }
 
+// === Agent credentials ===
+
+func (s *Store) UpsertAgentCredential(ctx context.Context, c *model.AgentCredential) error {
+	if c == nil {
+		return storage.ErrInvalidArgument
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return s.applyOp(&raftv1.Op{Op: &raftv1.Op_AgentCredentialUpsert{AgentCredentialUpsert: wire.AgentCredentialToProto(c)}})
+}
+
+func (s *Store) GetAgentCredential(ctx context.Context, agentID string) (*model.AgentCredential, error) {
+	return s.inner.GetAgentCredential(ctx, agentID)
+}
+
+func (s *Store) DeleteAgentCredential(ctx context.Context, agentID string) error {
+	return s.applyOp(&raftv1.Op{Op: &raftv1.Op_AgentCredentialDelete{AgentCredentialDelete: agentID}})
+}
+
 // === Users ===
 
 func (s *Store) UpsertUser(ctx context.Context, u *model.User) error {

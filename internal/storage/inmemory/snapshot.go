@@ -11,6 +11,7 @@ import (
 // Order of elements within each slice is unspecified.
 type SnapshotContent struct {
 	Agents      []*model.Agent
+	AgentCreds  []*model.AgentCredential
 	Users       []*model.User
 	Roles       []*model.Role
 	Credentials []*model.Credential
@@ -30,6 +31,7 @@ func (s *Store) SnapshotForRaft() SnapshotContent {
 	snap := s.takeSnapshot()
 	return SnapshotContent{
 		Agents:      valuesOf(snap.agents),
+		AgentCreds:  valuesOf(snap.agentCreds),
 		Users:       valuesOf(snap.users),
 		Roles:       valuesOf(snap.roles),
 		Credentials: valuesOf(snap.credentials),
@@ -48,6 +50,7 @@ func (s *Store) SnapshotForRaft() SnapshotContent {
 func (s *Store) RestoreFromSnapshot(c SnapshotContent) {
 	s.restoreSnapshot(snapshot{
 		agents:      indexByID(c.Agents),
+		agentCreds:  indexByID(c.AgentCreds),
 		users:       indexByID(c.Users),
 		roles:       indexByID(c.Roles),
 		credentials: indexByID(c.Credentials),

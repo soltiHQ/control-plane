@@ -28,6 +28,7 @@ type txView struct {
 	// Per-entity overlays. key = ID; value = pointer or nil (nil means
 	// "deleted within this tx").
 	agents      map[string]*model.Agent
+	agentCreds  map[string]*model.AgentCredential
 	users       map[string]*model.User
 	roles       map[string]*model.Role
 	credentials map[string]*model.Credential
@@ -41,6 +42,7 @@ func newTxView(inner storage.Storage) *txView {
 	return &txView{
 		inner:       inner,
 		agents:      map[string]*model.Agent{},
+		agentCreds:  map[string]*model.AgentCredential{},
 		users:       map[string]*model.User{},
 		roles:       map[string]*model.Role{},
 		credentials: map[string]*model.Credential{},
@@ -93,6 +95,31 @@ func (v *txView) ListAgents(ctx context.Context, f storage.AgentFilter, o storag
 func (v *txView) DeleteAgent(ctx context.Context, id string) error {
 	v.agents[id] = nil
 	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_AgentDelete{AgentDelete: id}})
+	return nil
+}
+
+func (v *txView) UpsertAgentCredential(ctx context.Context, c *model.AgentCredential) error {
+	if c == nil {
+		return storage.ErrInvalidArgument
+	}
+	v.agentCreds[c.ID()] = c
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_AgentCredentialUpsert{AgentCredentialUpsert: wire.AgentCredentialToProto(c)}})
+	return nil
+}
+
+func (v *txView) GetAgentCredential(ctx context.Context, agentID string) (*model.AgentCredential, error) {
+	if val, found, tomb := overlayGet(v.agentCreds, agentID); found {
+		if tomb {
+			return nil, storage.ErrNotFound
+		}
+		return val, nil
+	}
+	return v.inner.GetAgentCredential(ctx, agentID)
+}
+
+func (v *txView) DeleteAgentCredential(ctx context.Context, agentID string) error {
+	v.agentCreds[agentID] = nil
+	v.ops = append(v.ops, &raftv1.Op{Op: &raftv1.Op_AgentCredentialDelete{AgentCredentialDelete: agentID}})
 	return nil
 }
 

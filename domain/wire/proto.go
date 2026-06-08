@@ -107,6 +107,35 @@ func AgentFromProto(p *raftv1.AgentMsg) (*model.Agent, error) {
 	return a, nil
 }
 
+// === Agent credentials ===
+
+// AgentCredentialToProto serialises a model.AgentCredential for Raft replication.
+func AgentCredentialToProto(c *model.AgentCredential) *raftv1.AgentCredentialMsg {
+	if c == nil {
+		return nil
+	}
+	return &raftv1.AgentCredentialMsg{
+		AgentId:     c.AgentID(),
+		Token:       c.Token(),
+		CreatedAtNs: timeToUnixNano(c.CreatedAt()),
+		UpdatedAtNs: timeToUnixNano(c.UpdatedAt()),
+	}
+}
+
+// AgentCredentialFromProto reconstructs a model.AgentCredential from its Raft representation.
+func AgentCredentialFromProto(p *raftv1.AgentCredentialMsg) (*model.AgentCredential, error) {
+	if p == nil {
+		return nil, nil
+	}
+	c, err := model.NewAgentCredential(p.GetAgentId(), p.GetToken())
+	if err != nil {
+		return nil, err
+	}
+	c.SetCreatedAt(timeFromUnixNano(p.GetCreatedAtNs()))
+	c.SetUpdatedAt(timeFromUnixNano(p.GetUpdatedAtNs()))
+	return c, nil
+}
+
 // === Users ===
 
 // UserToProto serialises a model.User for Raft replication.

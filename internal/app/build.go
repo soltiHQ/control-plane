@@ -171,9 +171,9 @@ func buildMainHandler(cfg config.Config, logger zerolog.Logger, svc services, au
 	return h
 }
 
-func buildDiscoveryHandler(logger zerolog.Logger, agentSVC *agent.Service, eventHub *event.Hub, leadership cluster.Leadership, httpPort int, limiter *ratelimit.Limiter) http.Handler {
+func buildDiscoveryHandler(logger zerolog.Logger, agentSVC *agent.Service, eventHub *event.Hub, leadership cluster.Leadership, httpPort int, limiter *ratelimit.Limiter, requireAuth bool) http.Handler {
 	var (
-		httpDiscovery = handler.NewHTTPDiscovery(logger, agentSVC, eventHub)
+		httpDiscovery = handler.NewHTTPDiscovery(logger, agentSVC, eventHub, requireAuth)
 		mux           = http.NewServeMux()
 	)
 	mux.HandleFunc("/api/v1/discovery/sync", httpDiscovery.Sync)
@@ -199,7 +199,11 @@ func buildLogHub(logger zerolog.Logger, agentSVC *agent.Service, proxyPool *prox
 		if ag.Endpoint() == "" {
 			return nil, fmt.Errorf("agent %q has no endpoint", agentID)
 		}
-		p, err := proxyPool.Get(ag.Endpoint(), ag.EndpointType(), ag.APIVersion())
+		token, err := agentSVC.AgentToken(ctx, agentID)
+		if err != nil {
+			return nil, err
+		}
+		p, err := proxyPool.Get(ag.Endpoint(), ag.EndpointType(), ag.APIVersion(), token)
 		if err != nil {
 			return nil, err
 		}
@@ -222,7 +226,7 @@ func addrPort(addr string) int {
 	return n
 }
 
-func buildGRPCServer(logger zerolog.Logger, agentSVC *agent.Service, eventHub *event.Hub, leadership cluster.Leadership, limiter *ratelimit.Limiter, serverTLS *tls.Config) *grpc.Server {
+func buildGRPCServer(logger zerolog.Logger, agentSVC *agent.Service, eventHub *event.Hub, leadership cluster.Leadership, limiter *ratelimit.Limiter, serverTLS *tls.Config, requireAuth bool) *grpc.Server {
 	// Write methods (must run on leader). Sync is the only agent-facing
 	// mutation; everything else is pure read.
 	writeMethods := map[string]struct{}{
@@ -252,7 +256,7 @@ func buildGRPCServer(logger zerolog.Logger, agentSVC *agent.Service, eventHub *e
 
 	var (
 		srv           = grpc.NewServer(opts...)
-		grpcDiscovery = handler.NewGRPCDiscovery(logger, agentSVC, eventHub)
+		grpcDiscovery = handler.NewGRPCDiscovery(logger, agentSVC, eventHub, requireAuth)
 	)
 	discoverv1.RegisterDiscoverServiceServer(srv, grpcDiscovery)
 	return srv

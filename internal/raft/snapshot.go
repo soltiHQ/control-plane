@@ -35,8 +35,9 @@ func (s *fsmSnapshot) Persist(sink hraft.SnapshotSink) error {
 			Magic:   snapshotMagic,
 			Version: snapshotVersion,
 		},
-		Agents:      make([]*raftv1.AgentMsg, 0, len(s.content.Agents)),
-		Users:       make([]*raftv1.UserMsg, 0, len(s.content.Users)),
+		Agents:           make([]*raftv1.AgentMsg, 0, len(s.content.Agents)),
+		AgentCredentials: make([]*raftv1.AgentCredentialMsg, 0, len(s.content.AgentCreds)),
+		Users:            make([]*raftv1.UserMsg, 0, len(s.content.Users)),
 		Roles:       make([]*raftv1.RoleMsg, 0, len(s.content.Roles)),
 		Credentials: make([]*raftv1.CredentialMsg, 0, len(s.content.Credentials)),
 		Verifiers:   make([]*raftv1.VerifierMsg, 0, len(s.content.Verifiers)),
@@ -46,6 +47,9 @@ func (s *fsmSnapshot) Persist(sink hraft.SnapshotSink) error {
 	}
 	for _, a := range s.content.Agents {
 		msg.Agents = append(msg.Agents, wire.AgentToProto(a))
+	}
+	for _, c := range s.content.AgentCreds {
+		msg.AgentCredentials = append(msg.AgentCredentials, wire.AgentCredentialToProto(c))
 	}
 	for _, u := range s.content.Users {
 		msg.Users = append(msg.Users, wire.UserToProto(u))

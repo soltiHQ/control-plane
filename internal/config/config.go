@@ -36,6 +36,17 @@ type TLSConfig struct {
 	Client tlsconf.ClientConfig `yaml:"client" envconfig:"CLIENT"`
 }
 
+// AgentAuthConfig controls bearer-token authentication between agents and the
+// control plane — one switch for both directions.
+//
+// When Require is true: discovery enrolls each agent's token on first contact
+// (trust-on-first-use) and verifies it on every subsequent sync, rejecting
+// mismatches; outbound proxy calls present the stored token. When false, no
+// token is verified inbound and none is sent outbound. Orthogonal to TLS.
+type AgentAuthConfig struct {
+	Require bool `yaml:"require" envconfig:"REQUIRE"`
+}
+
 // Config holds the full application configuration.
 type Config struct {
 	HTTP          httpserver.Config        `yaml:"http"           envconfig:"HTTP"`
@@ -50,6 +61,7 @@ type Config struct {
 	Cluster       cluster.Config           `yaml:"cluster"        envconfig:"CLUSTER"`
 	Streams       middleware.StreamsConfig `yaml:"streams"        envconfig:"STREAMS"`
 	TLS           TLSConfig                `yaml:"tls"            envconfig:"TLS"`
+	AgentAuth     AgentAuthConfig          `yaml:"agent_auth"     envconfig:"AGENT_AUTH"`
 }
 
 // Default returns the default development configuration.

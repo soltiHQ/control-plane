@@ -92,6 +92,12 @@ func NewAPI(
 	if hub == nil {
 		panic(event.ErrNilHub)
 	}
+	if logHub == nil {
+		panic("handler.NewAPI: nil log hub")
+	}
+	if streamLimit == nil {
+		panic("handler.NewAPI: nil stream limiter")
+	}
 	return &API{
 		logger: logger.With().Str("handler", "api").Logger(),
 

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 
 	"github.com/rs/zerolog"
@@ -9,6 +10,10 @@ import (
 	"github.com/soltiHQ/control-plane/internal/service"
 	"github.com/soltiHQ/control-plane/internal/storage"
 )
+
+// ErrUnauthenticated indicates an agent presented a missing or wrong bearer
+// token during discovery. Handlers map it to HTTP 401 / gRPC Unauthenticated.
+var ErrUnauthenticated = errors.New("agent: unauthenticated")
 
 // Service provides agent management operations.
 type Service struct {
@@ -49,6 +54,57 @@ func (s *Service) Get(ctx context.Context, id string) (*model.Agent, error) {
 		return nil, storage.ErrInvalidArgument
 	}
 	return s.store.GetAgent(ctx, id)
+}
+
+// VerifyOrEnrollToken implements trust-on-first-use bearer auth for an agent.
+//
+// First contact (no stored credential) enrolls the presented token. Every later
+// sync must present the same token (constant-time compare); a missing or wrong
+// token returns ErrUnauthenticated. The read-check-write runs inside one
+// transaction so two concurrent first-contacts can't both enroll and race.
+func (s *Service) VerifyOrEnrollToken(ctx context.Context, agentID, presented string) error {
+	if agentID == "" {
+		return storage.ErrInvalidArgument
+	}
+	if presented == "" {
+		return ErrUnauthenticated
+	}
+
+	return s.store.WithTx(ctx, func(tx storage.Storage) error {
+		existing, err := tx.GetAgentCredential(ctx, agentID)
+		switch {
+		case err == nil:
+			if subtle.ConstantTimeCompare([]byte(existing.Token()), []byte(presented)) != 1 {
+				return ErrUnauthenticated
+			}
+			return nil
+		case errors.Is(err, storage.ErrNotFound):
+			cred, err := model.NewAgentCredential(agentID, presented)
+			if err != nil {
+				return err
+			}
+			return tx.UpsertAgentCredential(ctx, cred)
+		default:
+			return err
+		}
+	})
+}
+
+// AgentToken returns the bearer token the control plane must present when
+// calling this agent, or "" if the agent has no credential yet (not enrolled,
+// or agent auth disabled). A missing credential is not an error.
+func (s *Service) AgentToken(ctx context.Context, agentID string) (string, error) {
+	if agentID == "" {
+		return "", storage.ErrInvalidArgument
+	}
+	c, err := s.store.GetAgentCredential(ctx, agentID)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return "", nil
+		}
+		return "", err
+	}
+	return c.Token(), nil
 }
 
 // Upsert an agent.

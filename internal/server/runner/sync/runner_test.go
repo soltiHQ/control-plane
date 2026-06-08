@@ -89,7 +89,7 @@ func (f *fakeProxy) StreamTaskLogs(ctx context.Context, _ string) (<-chan *taskv
 
 type fakePool struct{ ap *fakeProxy }
 
-func (p *fakePool) Get(_ string, _ enum.EndpointType, _ enum.APIVersion) (proxy.AgentProxy, error) {
+func (p *fakePool) Get(_ string, _ enum.EndpointType, _ enum.APIVersion, _ string) (proxy.AgentProxy, error) {
 	return p.ap, nil
 }
 

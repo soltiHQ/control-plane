@@ -20,7 +20,7 @@ import (
 
 // proxyGetter is the small subset of *proxy.Pool that the sync runner actually needs.
 type proxyGetter interface {
-	Get(endpoint string, epType enum.EndpointType, apiVersion enum.APIVersion) (proxy.AgentProxy, error)
+	Get(endpoint string, epType enum.EndpointType, apiVersion enum.APIVersion, token string) (proxy.AgentProxy, error)
 }
 
 // Runner periodically reconciles Rollout records against live state on agents.
@@ -211,12 +211,23 @@ func (r *Runner) getProxy(ctx context.Context, ss *model.Rollout) (proxy.AgentPr
 		r.markFailed(ctx, ss, "agent not found: "+err.Error())
 		return nil, false
 	}
-	ap, err := r.pool.Get(ag.Endpoint(), ag.EndpointType(), ag.APIVersion())
+	ap, err := r.pool.Get(ag.Endpoint(), ag.EndpointType(), ag.APIVersion(), r.agentToken(ctx, ss.AgentID()))
 	if err != nil {
 		r.markFailed(ctx, ss, "proxy error: "+err.Error())
 		return nil, false
 	}
 	return ap, true
+}
+
+// agentToken returns the bearer token to present to an agent, or "" if the
+// agent has no credential (not enrolled, or auth disabled). Any lookup failure
+// degrades to "" — the call proceeds without a token and the agent decides.
+func (r *Runner) agentToken(ctx context.Context, agentID string) string {
+	c, err := r.store.GetAgentCredential(ctx, agentID)
+	if err != nil {
+		return ""
+	}
+	return c.Token()
 }
 
 // finalizeDeletedSpecs removes any spec with DeletionRequested=true whose last rollout has drained.

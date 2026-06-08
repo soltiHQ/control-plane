@@ -79,28 +79,37 @@ func NewPool(clientTLS *tls.Config) *Pool {
 
 // Get returns an AgentProxy for the given endpoint, selecting the implementation
 // based on api version and endpoint type.
-func (p *Pool) Get(endpoint string, epType enum.EndpointType, apiVersion enum.APIVersion) (AgentProxy, error) {
+// Get returns an AgentProxy bound to the given endpoint and (optional) bearer
+// token. An empty token means "send no credential" (auth disabled, or the agent
+// is not yet enrolled). The proxy presents the token on every call.
+func (p *Pool) Get(endpoint string, epType enum.EndpointType, apiVersion enum.APIVersion, token string) (AgentProxy, error) {
 	switch apiVersion {
 	case enum.APIVersionV1:
-		return p.getV1(endpoint, epType)
+		return p.getV1(endpoint, epType, token)
 	default:
 		return nil, ErrUnsupportedAPIVersion
 	}
 }
 
-func (p *Pool) getV1(endpoint string, epType enum.EndpointType) (AgentProxy, error) {
+func (p *Pool) getV1(endpoint string, epType enum.EndpointType, token string) (AgentProxy, error) {
 	switch epType {
 	case enum.EndpointHTTP:
+		// Wrap the shared client so every request carries the bearer header;
+		// keep the bare shared client when there is no token (zero overhead).
+		var client httpClient = p.httpCli
+		if token != "" {
+			client = &bearerClient{inner: p.httpCli, token: token}
+		}
 		return &httpProxyV1{
 			endpoint: strings.TrimRight(endpoint, "/"),
-			client:   p.httpCli,
+			client:   client,
 		}, nil
 	case enum.EndpointGRPC:
 		conn, err := p.grpcConn(endpoint)
 		if err != nil {
 			return nil, err
 		}
-		return &grpcProxyV1{conn: conn}, nil
+		return &grpcProxyV1{conn: conn, token: token}, nil
 	default:
 		return nil, ErrUnsupportedEndpointType
 	}

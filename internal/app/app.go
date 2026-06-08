@@ -132,7 +132,7 @@ func New(ctx context.Context, cfg config.Config, logger zerolog.Logger) (*App, e
 		return nil, err
 	}
 
-	discoveryHandler := buildDiscoveryHandler(logger, svc.agent, eventHub, leadership, addrPort(cfg.HTTPDiscovery.Addr), authModel.Limiter)
+	discoveryHandler := buildDiscoveryHandler(logger, svc.agent, eventHub, leadership, addrPort(cfg.HTTPDiscovery.Addr), authModel.Limiter, cfg.AgentAuth.Require)
 	discoveryCfg := cfg.HTTPDiscovery
 	discoveryCfg.TLSConfig = serverTLS
 	httpDiscoveryRunner, err := httpserver.New(discoveryCfg, logger, discoveryHandler)
@@ -142,7 +142,7 @@ func New(ctx context.Context, cfg config.Config, logger zerolog.Logger) (*App, e
 		return nil, err
 	}
 
-	grpcSrv := buildGRPCServer(logger, svc.agent, eventHub, leadership, authModel.Limiter, serverTLS)
+	grpcSrv := buildGRPCServer(logger, svc.agent, eventHub, leadership, authModel.Limiter, serverTLS, cfg.AgentAuth.Require)
 	grpcRunner, err := grpcserver.New(cfg.GRPC, logger, grpcSrv)
 	if err != nil {
 		proxyPool.Close()

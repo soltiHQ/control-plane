@@ -17,6 +17,19 @@ type httpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+// bearerClient decorates an httpClient, adding "Authorization: Bearer <token>"
+// to every request. Used for outbound calls to agents that require a token.
+// Only constructed with a non-empty token (see Pool.getV1).
+type bearerClient struct {
+	inner httpClient
+	token string
+}
+
+func (b *bearerClient) Do(req *http.Request) (*http.Response, error) {
+	req.Header.Set("Authorization", "Bearer "+b.token)
+	return b.inner.Do(req)
+}
+
 // maxErrorBodyBytes caps how much of a non-2xx response body is read back for
 // diagnostic purposes. The SDK emits compact JSON error bodies (~ tens of bytes);
 // 4 KiB leaves enough headroom for a stack-style message without letting a

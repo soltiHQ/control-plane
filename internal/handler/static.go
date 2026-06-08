@@ -39,8 +39,9 @@ func (s *Static) serve(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	// w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-	// w.Header().Set("X-Content-Type-Options", "nosniff")
+	// Prevent browsers from MIME-sniffing served assets into a different
+	// content type — cheap defense-in-depth, always safe for static files.
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 
 	s.server.ServeHTTP(w, r)
 }

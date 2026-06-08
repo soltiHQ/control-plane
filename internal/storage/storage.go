@@ -74,6 +74,38 @@ type AgentStore interface {
 	DeleteAgent(ctx context.Context, id string) error
 }
 
+// AgentCredentialStore persists per-agent bearer secrets learned at discovery
+// (trust-on-first-use). Keyed by agent ID — one credential per agent. The token
+// is raw (the control plane must present it on outbound calls), so it is never
+// surfaced to API/UI and never logged in clear.
+type AgentCredentialStore interface {
+	// UpsertAgentCredential stores or replaces an agent's credential.
+	//
+	// Returns:
+	//   - ErrInvalidArgument if the credential is nil or violates storage-level invariants.
+	//   - ErrUnavailable if the backend is temporarily unavailable.
+	//   - ErrInternal for unexpected storage failures.
+	UpsertAgentCredential(ctx context.Context, c *model.AgentCredential) error
+
+	// GetAgentCredential retrieves the credential bound to an agent.
+	//
+	// Returns:
+	//   - ErrNotFound if the agent has no credential yet (not enrolled).
+	//   - ErrInvalidArgument if the agent ID is empty or malformed.
+	//   - ErrUnavailable if the backend is temporarily unavailable.
+	//   - ErrInternal for unexpected storage failures.
+	GetAgentCredential(ctx context.Context, agentID string) (*model.AgentCredential, error)
+
+	// DeleteAgentCredential removes an agent's credential (revoke / reset).
+	//
+	// Returns:
+	//   - ErrNotFound if no credential exists for the agent.
+	//   - ErrInvalidArgument if the agent ID is empty or malformed.
+	//   - ErrUnavailable if the backend is temporarily unavailable.
+	//   - ErrInternal for unexpected storage failures.
+	DeleteAgentCredential(ctx context.Context, agentID string) error
+}
+
 // UserStore defines persistence operations for user entities.
 type UserStore interface {
 	// UpsertUser creates a new user or replaces an existing one.
@@ -455,6 +487,7 @@ type Storage interface {
 	SessionStore
 	RolloutStore
 	AgentStore
+	AgentCredentialStore
 	RoleStore
 	UserStore
 	SpecStore

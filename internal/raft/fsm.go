@@ -121,6 +121,15 @@ func applyStoreOp(ctx context.Context, tx storage.Storage, op *raftv1.Op) error 
 	case *raftv1.Op_AgentDelete:
 		return tx.DeleteAgent(ctx, v.AgentDelete)
 
+	case *raftv1.Op_AgentCredentialUpsert:
+		c, err := wire.AgentCredentialFromProto(v.AgentCredentialUpsert)
+		if err != nil {
+			return err
+		}
+		return tx.UpsertAgentCredential(ctx, c)
+	case *raftv1.Op_AgentCredentialDelete:
+		return tx.DeleteAgentCredential(ctx, v.AgentCredentialDelete)
+
 	case *raftv1.Op_UserUpsert:
 		u, err := wire.UserFromProto(v.UserUpsert)
 		if err != nil {
@@ -254,6 +263,13 @@ func (f *FSM) Restore(r io.ReadCloser) error {
 			return fmt.Errorf("raft restore: agent: %w", err)
 		}
 		content.Agents = append(content.Agents, a)
+	}
+	for _, m := range snap.GetAgentCredentials() {
+		c, err := wire.AgentCredentialFromProto(m)
+		if err != nil {
+			return fmt.Errorf("raft restore: agent credential: %w", err)
+		}
+		content.AgentCreds = append(content.AgentCreds, c)
 	}
 	for _, m := range snap.GetUsers() {
 		u, err := wire.UserFromProto(m)

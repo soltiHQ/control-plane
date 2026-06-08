@@ -8,11 +8,22 @@ import (
 	taskv1 "github.com/soltiHQ/control-plane/api/gen/solti/task/v1"
 	proxyv1 "github.com/soltiHQ/control-plane/api/proxy/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 // grpcProxyV1 implements AgentProxy over gRPC (solti.task.v1.TaskService).
 type grpcProxyV1 struct {
-	conn *grpc.ClientConn
+	conn  *grpc.ClientConn
+	token string
+}
+
+// authCtx attaches the bearer token as gRPC "authorization" metadata when set.
+// Empty token → ctx unchanged (no credential sent).
+func (p *grpcProxyV1) authCtx(ctx context.Context) context.Context {
+	if p.token == "" {
+		return ctx
+	}
+	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+p.token)
 }
 
 func (p *grpcProxyV1) ListTasks(ctx context.Context, f TaskFilter) (*proxyv1.ListTasksResponse, error) {
@@ -31,7 +42,7 @@ func (p *grpcProxyV1) ListTasks(ctx context.Context, f TaskFilter) (*proxyv1.Lis
 		}
 	}
 
-	resp, err := client.ListTasks(ctx, req)
+	resp, err := client.ListTasks(p.authCtx(ctx), req)
 	if err != nil {
 		return nil, agentError(ErrListTasks, err)
 	}
@@ -53,7 +64,7 @@ func (p *grpcProxyV1) ApplyTask(ctx context.Context, sub TaskSubmission) (string
 	}
 	client := taskv1.NewTaskServiceClient(p.conn)
 
-	resp, err := client.ApplyTask(ctx, &taskv1.ApplyTaskRequest{Spec: sub.Spec})
+	resp, err := client.ApplyTask(p.authCtx(ctx), &taskv1.ApplyTaskRequest{Spec: sub.Spec})
 	if err != nil {
 		return "", agentError(ErrApplyTask, err)
 	}
@@ -67,7 +78,7 @@ func (p *grpcProxyV1) ApplyTask(ctx context.Context, sub TaskSubmission) (string
 func (p *grpcProxyV1) GetTask(ctx context.Context, taskID string) (*proxyv1.GetTaskResponse, error) {
 	client := taskv1.NewTaskServiceClient(p.conn)
 
-	resp, err := client.GetTaskStatus(ctx, &taskv1.GetTaskStatusRequest{TaskId: taskID})
+	resp, err := client.GetTaskStatus(p.authCtx(ctx), &taskv1.GetTaskStatusRequest{TaskId: taskID})
 	if err != nil {
 		return nil, agentError(ErrGetTask, err)
 	}
@@ -84,7 +95,7 @@ func (p *grpcProxyV1) GetTask(ctx context.Context, taskID string) (*proxyv1.GetT
 func (p *grpcProxyV1) ListTaskRuns(ctx context.Context, taskID string) (*proxyv1.ListTaskRunsResponse, error) {
 	client := taskv1.NewTaskServiceClient(p.conn)
 
-	resp, err := client.ListTaskRuns(ctx, &taskv1.ListTaskRunsRequest{TaskId: taskID})
+	resp, err := client.ListTaskRuns(p.authCtx(ctx), &taskv1.ListTaskRunsRequest{TaskId: taskID})
 	if err != nil {
 		return nil, agentError(ErrListTaskRuns, err)
 	}
@@ -114,7 +125,7 @@ func (p *grpcProxyV1) ListTaskRuns(ctx context.Context, taskID string) (*proxyv1
 func (p *grpcProxyV1) DeleteTask(ctx context.Context, taskID string) error {
 	client := taskv1.NewTaskServiceClient(p.conn)
 
-	_, err := client.DeleteTask(ctx, &taskv1.DeleteTaskRequest{TaskId: taskID})
+	_, err := client.DeleteTask(p.authCtx(ctx), &taskv1.DeleteTaskRequest{TaskId: taskID})
 	if err != nil {
 		return agentError(ErrDeleteTask, err)
 	}
@@ -128,7 +139,7 @@ func (p *grpcProxyV1) DeleteTask(ctx context.Context, taskID string) error {
 // cadence (~10 lines/sec) is well below; bursts are absorbed.
 func (p *grpcProxyV1) StreamTaskLogs(ctx context.Context, taskID string) (<-chan *taskv1.StreamTaskLogsResponse, error) {
 	client := taskv1.NewTaskServiceClient(p.conn)
-	stream, err := client.StreamTaskLogs(ctx, &taskv1.StreamTaskLogsRequest{TaskId: taskID})
+	stream, err := client.StreamTaskLogs(p.authCtx(ctx), &taskv1.StreamTaskLogsRequest{TaskId: taskID})
 	if err != nil {
 		return nil, agentError(ErrStreamTaskLogs, err)
 	}

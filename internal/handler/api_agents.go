@@ -225,7 +225,14 @@ func (a *API) agentTasksList(w http.ResponseWriter, r *http.Request, mode httpct
 		q = r.URL.Query().Get("q")
 	)
 
-	p, err := a.proxyPool.Get(ag.Endpoint(), ag.EndpointType(), ag.APIVersion())
+	token, err := a.agentSVC.AgentToken(r.Context(), agentID)
+	if err != nil {
+		a.logger.Error().Err(err).Str("agent_id", agentID).Msg("agent tasks: token lookup failed")
+		response.Unavailable(w, r, mode)
+		return
+	}
+
+	p, err := a.proxyPool.Get(ag.Endpoint(), ag.EndpointType(), ag.APIVersion(), token)
 	if err != nil {
 		a.logger.Error().Err(err).
 			Str("agent_id", agentID).

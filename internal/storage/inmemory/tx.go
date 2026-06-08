@@ -13,6 +13,7 @@ import (
 // sufficient for rollback.
 type snapshot struct {
 	agents      map[string]*model.Agent
+	agentCreds  map[string]*model.AgentCredential
 	users       map[string]*model.User
 	roles       map[string]*model.Role
 	credentials map[string]*model.Credential
@@ -25,6 +26,7 @@ type snapshot struct {
 func (s *Store) takeSnapshot() snapshot {
 	return snapshot{
 		agents:      copyMap(s.agents),
+		agentCreds:  copyMap(s.agentCreds),
 		users:       copyMap(s.users),
 		roles:       copyMap(s.roles),
 		credentials: copyMap(s.credentials),
@@ -37,6 +39,7 @@ func (s *Store) takeSnapshot() snapshot {
 
 func (s *Store) restoreSnapshot(snap snapshot) {
 	restoreMap(s.agents, snap.agents)
+	restoreMap(s.agentCreds, snap.agentCreds)
 	restoreMap(s.users, snap.users)
 	restoreMap(s.roles, snap.roles)
 	restoreMap(s.credentials, snap.credentials)

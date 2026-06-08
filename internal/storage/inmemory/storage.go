@@ -30,6 +30,7 @@ type Store struct {
 	txMu sync.Mutex
 
 	agents      *GenericStore[*model.Agent]
+	agentCreds  *GenericStore[*model.AgentCredential]
 	users       *GenericStore[*model.User]
 	roles       *GenericStore[*model.Role]
 	credentials *GenericStore[*model.Credential]
@@ -43,6 +44,7 @@ type Store struct {
 func New() *Store {
 	return &Store{
 		agents:      NewGenericStore[*model.Agent](),
+		agentCreds:  NewGenericStore[*model.AgentCredential](),
 		users:       NewGenericStore[*model.User](),
 		roles:       NewGenericStore[*model.Role](),
 		credentials: NewGenericStore[*model.Credential](),
@@ -81,6 +83,23 @@ func (s *Store) ListAgents(ctx context.Context, filter storage.AgentFilter, opts
 
 func (s *Store) DeleteAgent(ctx context.Context, id string) error {
 	return s.agents.Delete(ctx, id)
+}
+
+// --- Agent credentials ---
+
+func (s *Store) UpsertAgentCredential(ctx context.Context, c *model.AgentCredential) error {
+	if c == nil {
+		return storage.ErrInvalidArgument
+	}
+	return s.agentCreds.Upsert(ctx, c)
+}
+
+func (s *Store) GetAgentCredential(ctx context.Context, agentID string) (*model.AgentCredential, error) {
+	return s.agentCreds.Get(ctx, agentID)
+}
+
+func (s *Store) DeleteAgentCredential(ctx context.Context, agentID string) error {
+	return s.agentCreds.Delete(ctx, agentID)
 }
 
 // --- Users ---
