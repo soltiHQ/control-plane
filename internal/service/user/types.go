@@ -9,8 +9,8 @@ const defaultListLimit = 60
 
 // ListQuery describes a paginated users listing request.
 type ListQuery struct {
-	// Filter is a storage-level filter. Backends validate that the filter
-	// was constructed for that backend and return storage.ErrInvalidArgument otherwise.
+	// Filter is a storage-level filter.
+	// Backends validate that the filter was constructed for that backend and return storage.ErrInvalidArgument otherwise.
 	Filter storage.UserFilter
 
 	Cursor string

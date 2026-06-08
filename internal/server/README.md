@@ -55,12 +55,12 @@ type Runner interface {
 
 ## Runner implementations
 
-| Runner       | Tick-based | Purpose                                    |
-|--------------|------------|--------------------------------------------|
-| `httpserver`  | no         | Serve HTTP (UI + REST API)                 |
-| `grpcserver`  | no         | Serve gRPC (agent discovery)               |
-| `lifecycle`   | yes        | Transition stale agents through statuses    |
-| `sync`        | yes        | Push pending rollouts to agents via proxy  |
+| Runner        | Tick-based  | Purpose                                     |
+|---------------|-------------|---------------------------------------------|
+| `httpserver`  | no          | Serve HTTP (UI + REST API)                  |
+| `grpcserver`  | no          | Serve gRPC (agent discovery)                |
+| `lifecycle`   | yes         | Transition stale agents through statuses    |
+| `sync`        | yes         | Push pending rollouts to agents via proxy   |
 
 ### Server runners (httpserver, grpcserver)
 Both follow the same pattern:

@@ -1,13 +1,8 @@
-// Package lifecycle implements a server.Runner that periodically checks agent liveness
-//   - Transitions agents through status stages: (active → inactive → disconnected → deleted)
-//
-// Thresholds are expressed as multiples of each agent's heartbeat interval.
 package lifecycle
 
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -17,21 +12,19 @@ import (
 	"github.com/soltiHQ/control-plane/domain/model"
 	"github.com/soltiHQ/control-plane/internal/cluster"
 	"github.com/soltiHQ/control-plane/internal/event"
+	"github.com/soltiHQ/control-plane/internal/server/runner/base"
 	"github.com/soltiHQ/control-plane/internal/storage"
 	"github.com/soltiHQ/control-plane/internal/storage/inmemory"
 )
 
-// Runner is a server.Runner that periodically checks agent liveness.
+// Runner periodically checks agent liveness (active → inactive → disconnected → deleted) while this replica is leader.
 type Runner struct {
-	hub        *event.Hub
-	leadership cluster.Leadership
+	*base.Runner
 
+	hub    *event.Hub
 	logger zerolog.Logger
 	store  storage.AgentStore
 	cfg    Config
-
-	stop    chan struct{}
-	started atomic.Bool
 }
 
 // New creates a lifecycle runner.
@@ -46,75 +39,20 @@ func New(cfg Config, logger zerolog.Logger, store storage.AgentStore, hub *event
 		return nil, fmt.Errorf("lifecycle: nil leadership")
 	}
 	cfg = cfg.withDefaults()
-	return &Runner{
-		logger:     logger.With().Str("runner", cfg.Name).Logger(),
-		cfg:        cfg,
-		store:      store,
-		hub:        hub,
-		leadership: leadership,
-		stop:       make(chan struct{}),
-	}, nil
+
+	r := &Runner{
+		logger: logger.With().Str("runner", cfg.Name).Logger(),
+		cfg:    cfg,
+		store:  store,
+		hub:    hub,
+	}
+	r.Runner = base.New(cfg.Name, cfg.TickInterval, leadership, logger, r.tick)
+	return r, nil
 }
 
-// Name returns the runner name.
-func (r *Runner) Name() string { return r.cfg.Name }
-
-// Start runs the lifecycle check loop while this replica is leader.
-func (r *Runner) Start(ctx context.Context) error {
-	if !r.started.CompareAndSwap(false, true) {
-		return ErrAlreadyStarted
-	}
-
-	r.logger.Debug().
-		Dur("tick", r.cfg.TickInterval).
-		Int("inactive", r.cfg.InactiveMultiplier).
-		Int("disconnect", r.cfg.DisconnectMultiplier).
-		Int("delete", r.cfg.DeleteMultiplier).
-		Int("max_concurrency", r.cfg.MaxConcurrency).
-		Msg("lifecycle runner started")
-
-	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	go func() {
-		select {
-		case <-r.stop:
-			cancel()
-		case <-runCtx.Done():
-		}
-	}()
-
-	return r.leadership.WhenLeader(runCtx, func(leaderCtx context.Context) error {
-		ticker := time.NewTicker(r.cfg.TickInterval)
-		defer ticker.Stop()
-		r.logger.Info().Msg("lifecycle runner acquired leadership")
-		for {
-			select {
-			case <-ticker.C:
-				r.tick()
-			case <-leaderCtx.Done():
-				return nil
-			}
-		}
-	})
-}
-
-// Stop signals the runner to exit. Safe to call multiple times.
-func (r *Runner) Stop(_ context.Context) error {
-	if !r.started.Load() {
-		return nil
-	}
-	select {
-	case <-r.stop:
-	default:
-		close(r.stop)
-	}
-	return nil
-}
-
-func (r *Runner) tick() {
+func (r *Runner) tick(ctx context.Context) {
 	var (
 		now    = time.Now()
-		ctx    = context.Background()
 		filter = inmemory.NewAgentFilter().StaleAtBefore(now)
 
 		res, err = r.store.ListAgents(ctx, filter, storage.ListOptions{

@@ -1,7 +1,3 @@
-// Package user implements user management use-cases:
-//   - Paginated listing and retrieval (by ID or subject)
-//   - Upsert with field normalization and uniqueness checks
-//   - Cascading deletion (sessions → verifiers → credentials → user).
 package user
 
 import (
@@ -103,14 +99,14 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 			if c == nil {
 				continue
 			}
-			if err := tx.DeleteVerifierByCredential(ctx, c.ID()); err != nil {
+			if err = tx.DeleteVerifierByCredential(ctx, c.ID()); err != nil {
 				return err
 			}
-			if err := tx.DeleteCredential(ctx, c.ID()); err != nil && !errors.Is(err, storage.ErrNotFound) {
+			if err = tx.DeleteCredential(ctx, c.ID()); err != nil && !errors.Is(err, storage.ErrNotFound) {
 				return err
 			}
 		}
-		if err := tx.DeleteUser(ctx, id); err != nil && !errors.Is(err, storage.ErrNotFound) {
+		if err = tx.DeleteUser(ctx, id); err != nil && !errors.Is(err, storage.ErrNotFound) {
 			return err
 		}
 		return nil

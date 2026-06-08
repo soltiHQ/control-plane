@@ -1,7 +1,3 @@
-// Package credential implements credential management use-cases:
-//   - Listing credentials by user
-//   - Credential retrieval and deletion (with verifier cascade)
-//   - Password creation and replacement.
 package credential
 
 import (
@@ -100,8 +96,7 @@ func (s *Service) Delete(ctx context.Context, req DeleteRequest) error {
 
 // SetPassword creates or replaces password auth material for a user.
 //
-// CredentialID is optional — if empty, the existing password credential is
-// looked up or a new one is generated as "cred-{userID}".
+// CredentialID is optional: if empty, the existing password credential is looked up or a new one is generated as "cred-{userID}".
 // VerifierID is always derived as "ver-{credID}".
 func (s *Service) SetPassword(ctx context.Context, req SetPasswordRequest) error {
 	if req.UserID == "" || req.Password == "" {

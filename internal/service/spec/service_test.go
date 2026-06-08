@@ -14,9 +14,6 @@ import (
 	"github.com/soltiHQ/control-plane/internal/storage/inmemory"
 )
 
-// mkService builds a fresh Service backed by in-memory storage.
-// All tests share the same helper to keep them tightly focused on
-// intent-transition behaviour.
 func mkService(t *testing.T) (*Service, *inmemory.Store) {
 	t.Helper()
 	store := inmemory.New()
@@ -24,10 +21,6 @@ func mkService(t *testing.T) (*Service, *inmemory.Store) {
 	return New(store, log), store
 }
 
-// mkSpec builds a minimum-viable Spec + persists it, seeding agent
-// stubs for each target so Deploy's existence check passes. Tests that
-// want to exercise the missing-target path create their own spec via
-// model.NewSpec and skip this helper (see TestDeployRejectsUnknownTargets).
 func mkSpec(t *testing.T, svc *Service, store *inmemory.Store, id string, targets []string) *model.Spec {
 	t.Helper()
 	ts, err := model.NewSpec(id, "n-"+id, "slot-"+id)
@@ -35,7 +28,7 @@ func mkSpec(t *testing.T, svc *Service, store *inmemory.Store, id string, target
 		t.Fatalf("NewSpec: %v", err)
 	}
 	ts.SetTargets(targets)
-	if err := store.UpsertSpec(context.Background(), ts); err != nil {
+	if err = store.UpsertSpec(context.Background(), ts); err != nil {
 		t.Fatalf("UpsertSpec: %v", err)
 	}
 	for _, agentID := range targets {
@@ -46,20 +39,17 @@ func mkSpec(t *testing.T, svc *Service, store *inmemory.Store, id string, target
 		if err != nil {
 			t.Fatalf("NewAgentFrom: %v", err)
 		}
-		if err := store.UpsertAgent(context.Background(), ag); err != nil {
+		if err = store.UpsertAgent(context.Background(), ag); err != nil {
 			t.Fatalf("UpsertAgent: %v", err)
 		}
 	}
 	return ts
 }
 
-// --- Upsert: generation bumps only on runtime changes ---
-
 func TestUpsertBumpsVersionAlwaysGenerationOnRuntimeChange(t *testing.T) {
 	svc, store := mkService(t)
 	ts := mkSpec(t, svc, store, "sp-1", nil)
 
-	// Pure metadata edit (rename) — version must bump, generation stays.
 	renamed := ts.Clone()
 	renamed.SetName("new-name")
 	if err := svc.Upsert(context.Background(), renamed, 0); err != nil {
@@ -73,7 +63,6 @@ func TestUpsertBumpsVersionAlwaysGenerationOnRuntimeChange(t *testing.T) {
 		t.Errorf("rename: generation must NOT bump, got %d", afterRename.Generation())
 	}
 
-	// Runtime edit — both bump.
 	changed := afterRename.Clone()
 	changed.SetTimeoutMs(60_000)
 	if err := svc.Upsert(context.Background(), changed, 0); err != nil {
@@ -88,9 +77,6 @@ func TestUpsertBumpsVersionAlwaysGenerationOnRuntimeChange(t *testing.T) {
 	}
 }
 
-// --- Deploy reconciler matrix ---
-
-// Fresh deploy — every target gets a Pending/Install rollout.
 func TestDeployFreshTargetsInstall(t *testing.T) {
 	svc, store := mkService(t)
 	mkSpec(t, svc, store, "sp-1", []string{"agent-a", "agent-b"})
@@ -113,24 +99,17 @@ func TestDeployFreshTargetsInstall(t *testing.T) {
 	}
 }
 
-// Re-deploy after spec edit — already-synced rollout at same generation
-// is Noop; out-of-date one is Update. This is the core property of the
-// reconciler: it doesn't churn what's already correct.
 func TestDeploySkipsAlreadySyncedAtSameGeneration(t *testing.T) {
 	svc, store := mkService(t)
 	mkSpec(t, svc, store, "sp-1", []string{"agent-a", "agent-b"})
 
-	// First deploy → both pending.
 	_ = svc.Deploy(context.Background(), "sp-1")
 
-	// Simulate sync runner having successfully applied to agent-a.
 	rA, _ := store.GetRollout(context.Background(), model.RolloutID("sp-1", "agent-a"))
 	rA.SetActualTaskID("sub-slot-1")
 	rA.MarkSynced(1)
 	_ = store.UpsertRollout(context.Background(), rA)
 
-	// Second deploy at the same generation — agent-a must NOT be
-	// disturbed; agent-b remains pending/Install (nothing synced there).
 	if err := svc.Deploy(context.Background(), "sp-1"); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
@@ -148,26 +127,21 @@ func TestDeploySkipsAlreadySyncedAtSameGeneration(t *testing.T) {
 	}
 }
 
-// Spec generation bumped, rollout was Synced at old generation. Re-deploy
-// assigns Intent=Update (since ActualTaskID != "").
 func TestDeployQueuesUpdateForStaleRollout(t *testing.T) {
 	svc, store := mkService(t)
 	ts := mkSpec(t, svc, store, "sp-1", []string{"agent-a"})
 
-	// Install + simulate sync run at generation 1.
 	_ = svc.Deploy(context.Background(), "sp-1")
 	rA, _ := store.GetRollout(context.Background(), model.RolloutID("sp-1", "agent-a"))
 	rA.SetActualTaskID("sub-slot-1")
 	rA.MarkSynced(1)
 	_ = store.UpsertRollout(context.Background(), rA)
 
-	// Bump generation via an Upsert that changes runtime fields.
 	ts.SetTimeoutMs(60_000)
 	if err := svc.Upsert(context.Background(), ts, 0); err != nil {
 		t.Fatalf("Upsert: %v", err)
 	}
 
-	// Re-deploy at new generation.
 	_ = svc.Deploy(context.Background(), "sp-1")
 
 	rA2, _ := store.GetRollout(context.Background(), model.RolloutID("sp-1", "agent-a"))
@@ -179,13 +153,10 @@ func TestDeployQueuesUpdateForStaleRollout(t *testing.T) {
 	}
 }
 
-// Agent removed from targets — rollout gets Intent=Uninstall. Agents
-// kept in targets are not disturbed.
 func TestDeployQueuesUninstallForRemovedTarget(t *testing.T) {
 	svc, store := mkService(t)
 	ts := mkSpec(t, svc, store, "sp-1", []string{"agent-a", "agent-b"})
 
-	// Install both, simulate sync on both.
 	_ = svc.Deploy(context.Background(), "sp-1")
 	for _, ag := range []string{"agent-a", "agent-b"} {
 		r, _ := store.GetRollout(context.Background(), model.RolloutID("sp-1", ag))
@@ -194,7 +165,6 @@ func TestDeployQueuesUninstallForRemovedTarget(t *testing.T) {
 		_ = store.UpsertRollout(context.Background(), r)
 	}
 
-	// Drop agent-b from targets.
 	ts.SetTargets([]string{"agent-a"})
 	_ = svc.Upsert(context.Background(), ts, 0)
 	_ = svc.Deploy(context.Background(), "sp-1")
@@ -209,7 +179,6 @@ func TestDeployQueuesUninstallForRemovedTarget(t *testing.T) {
 	}
 }
 
-// Deleting a spec with no rollouts: immediate DeleteSpec, no tombstone.
 func TestDeleteFastPathWithoutRollouts(t *testing.T) {
 	svc, store := mkService(t)
 	mkSpec(t, svc, store, "sp-1", nil)
@@ -222,14 +191,11 @@ func TestDeleteFastPathWithoutRollouts(t *testing.T) {
 	}
 }
 
-// Deleting a spec with rollouts: soft delete, rollouts queued for uninstall.
-// Spec row survives until the finalizer drops it.
 func TestDeleteSoftPathWithRollouts(t *testing.T) {
 	svc, store := mkService(t)
 	mkSpec(t, svc, store, "sp-1", []string{"agent-a"})
 	_ = svc.Deploy(context.Background(), "sp-1")
 
-	// Simulate a successful install.
 	r, _ := store.GetRollout(context.Background(), model.RolloutID("sp-1", "agent-a"))
 	r.SetActualTaskID("sub-x")
 	r.MarkSynced(1)
@@ -239,7 +205,6 @@ func TestDeleteSoftPathWithRollouts(t *testing.T) {
 		t.Fatalf("Delete: %v", err)
 	}
 
-	// Spec must still exist, flagged.
 	ts2, err := store.GetSpec(context.Background(), "sp-1")
 	if err != nil {
 		t.Fatalf("spec should survive soft delete: %v", err)
@@ -248,7 +213,6 @@ func TestDeleteSoftPathWithRollouts(t *testing.T) {
 		t.Error("DeletionRequested should be true")
 	}
 
-	// Rollout must be queued for uninstall.
 	r2, _ := store.GetRollout(context.Background(), model.RolloutID("sp-1", "agent-a"))
 	if r2.Intent() != enum.RolloutIntentUninstall {
 		t.Errorf("rollout intent: got %s, want uninstall", r2.Intent())
@@ -261,15 +225,11 @@ func TestDeleteSoftPathWithRollouts(t *testing.T) {
 	}
 }
 
-// ForceDelete drops spec + rollouts immediately, no uninstall
-// round-trip to agents. Purpose: escape hatch when sync runner is
-// unable to drain rollouts (agent offline / retries exhausted).
 func TestForceDeleteDropsSpecAndRollouts(t *testing.T) {
 	svc, store := mkService(t)
 	mkSpec(t, svc, store, "sp-1", []string{"agent-a", "agent-b"})
 	_ = svc.Deploy(context.Background(), "sp-1")
 
-	// Pretend sync runner pushed both rollouts; some remain Failed.
 	for _, ag := range []string{"agent-a", "agent-b"} {
 		r, _ := store.GetRollout(context.Background(), model.RolloutID("sp-1", ag))
 		r.SetActualTaskID("sub-" + ag)
@@ -291,14 +251,9 @@ func TestForceDeleteDropsSpecAndRollouts(t *testing.T) {
 	}
 }
 
-// Deploy rejects up-front when a target agent is missing from the
-// agent store — otherwise we'd create zombie rollouts that churn
-// through retries and stick in Failed forever.
 func TestDeployRejectsUnknownTargets(t *testing.T) {
 	svc, store := mkService(t)
 
-	// Hand-rolled seeding (NOT via mkSpec) because we deliberately
-	// want a target agent that does not exist in the store.
 	ts, err := model.NewSpec("sp-1", "n-sp-1", "slot-sp-1")
 	if err != nil {
 		t.Fatalf("NewSpec: %v", err)
@@ -308,7 +263,6 @@ func TestDeployRejectsUnknownTargets(t *testing.T) {
 		t.Fatalf("UpsertSpec: %v", err)
 	}
 
-	// Seed only one of the two targets in the agent store.
 	real, err := model.NewAgentFrom(model.AgentParams{
 		ID: "agent-exists", Name: "n", Endpoint: "http://x",
 		EndpointType: 2, APIVersion: 1,
@@ -330,32 +284,22 @@ func TestDeployRejectsUnknownTargets(t *testing.T) {
 		t.Errorf("unknown.Agents = %v, want [agent-ghost]", unknown.Agents)
 	}
 
-	// No rollouts should have been created.
 	rs := listRollouts(t, store, "sp-1")
 	if len(rs) != 0 {
 		t.Errorf("no rollouts should exist after rejected deploy, got %d", len(rs))
 	}
 }
 
-// Deploy and Delete must not interleave on the same spec. The per-spec
-// mutex guarantees a clean "last-write-wins" outcome: either Delete
-// finished first and Deploy sees DeletionRequested (returns error), or
-// Deploy finished first and Delete then tombstones rollouts that Deploy
-// just set. Both cases yield consistent state; no half-finished mix.
 func TestDeployAndDeleteAreSerialisedPerSpec(t *testing.T) {
 	svc, store := mkService(t)
 	mkSpec(t, svc, store, "sp-1", []string{"agent-a"})
 	_ = svc.Deploy(context.Background(), "sp-1")
 
-	// Simulate a synced rollout so Delete takes the soft-delete path.
 	r, _ := store.GetRollout(context.Background(), model.RolloutID("sp-1", "agent-a"))
 	r.SetActualTaskID("sub-x")
 	r.MarkSynced(1)
 	_ = store.UpsertRollout(context.Background(), r)
 
-	// Fire concurrent Deploy + Delete N times; look for the pathological
-	// state (tombstoned spec with Install-intent rollout — which would
-	// stall the finalizer forever).
 	var wg sync.WaitGroup
 	for i := 0; i < 20; i++ {
 		wg.Add(2)
@@ -375,7 +319,6 @@ func TestDeployAndDeleteAreSerialisedPerSpec(t *testing.T) {
 		// without the lock — bug.
 		return
 	}
-	// Tombstoned: every remaining rollout must be Uninstall, not Install.
 	rs := listRollouts(t, store, "sp-1")
 	for _, r := range rs {
 		if r.Intent() == enum.RolloutIntentInstall || r.Intent() == enum.RolloutIntentUpdate {
@@ -387,19 +330,10 @@ func TestDeployAndDeleteAreSerialisedPerSpec(t *testing.T) {
 	}
 }
 
-// Upsert honors the CAS token: a client that submits an
-// expected-version older than what storage currently holds gets
-// ConflictError and the stored spec is not modified.
-//
-// This is the last-writer-wins protection UI flows rely on — two
-// editors opening the same spec, one saves, the second's save hits 409
-// so they re-load instead of silently stomping the first edit.
 func TestUpsertRejectsStaleVersion(t *testing.T) {
 	svc, store := mkService(t)
 	ts := mkSpec(t, svc, store, "sp-1", nil)
 
-	// First Upsert: version goes 1 → 2. Pass expectedVersion=1 (what the
-	// client loaded) — should succeed.
 	first := ts.Clone()
 	first.SetName("first-save")
 	if err := svc.Upsert(context.Background(), first, 1); err != nil {
@@ -410,7 +344,6 @@ func TestUpsertRejectsStaleVersion(t *testing.T) {
 		t.Fatalf("version after first save: got %d, want 2", afterFirst.Version())
 	}
 
-	// Second client still thinks it loaded at version 1 — must be rejected.
 	stale := ts.Clone()
 	stale.SetName("stale-save")
 	err := svc.Upsert(context.Background(), stale, 1)
@@ -426,7 +359,6 @@ func TestUpsertRejectsStaleVersion(t *testing.T) {
 			conflict.Expected, conflict.Actual)
 	}
 
-	// Stored value must still reflect the first save, not the stale one.
 	final, _ := store.GetSpec(context.Background(), "sp-1")
 	if final.Name() != "first-save" {
 		t.Errorf("stale write leaked through: stored name is %q, want first-save", final.Name())
@@ -436,33 +368,26 @@ func TestUpsertRejectsStaleVersion(t *testing.T) {
 	}
 }
 
-// Tombstoned specs (DeletionRequested=true) cannot be resurrected via
-// Upsert. They are read-only until the sync runner finalizer drops them.
 func TestUpsertRejectsTombstonedSpec(t *testing.T) {
 	svc, store := mkService(t)
 	ts := mkSpec(t, svc, store, "sp-1", []string{"agent-a"})
 
-	// Soft-delete flips the tombstone flag.
 	ts.MarkForDeletion()
 	if err := store.UpsertSpec(context.Background(), ts); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 
-	// Attempt to Upsert the tombstoned spec — must fail.
 	mutated := ts.Clone()
 	mutated.SetName("trying to resurrect")
 	if err := svc.Upsert(context.Background(), mutated, 0); err == nil {
 		t.Fatal("Upsert on tombstoned spec must return an error")
 	}
 
-	// Original stored value must not have mutated.
 	stored, _ := store.GetSpec(context.Background(), "sp-1")
 	if stored.Name() != "n-sp-1" {
 		t.Errorf("tombstoned spec name changed: got %q, want %q", stored.Name(), "n-sp-1")
 	}
 }
-
-// --- helpers ---
 
 func listRollouts(t *testing.T, store *inmemory.Store, specID string) []*model.Rollout {
 	t.Helper()

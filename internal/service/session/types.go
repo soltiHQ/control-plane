@@ -9,7 +9,7 @@ import (
 const defaultListLimit = 200
 
 // ListByUserQuery describes listing sessions for a user.
-// Storage contract is non-paginated, but we keep Limit to prevent footguns.
+// Storage contract is non-paginated, keep Limit to prevent footguns.
 type ListByUserQuery struct {
 	Limit  int
 	UserID string

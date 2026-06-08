@@ -26,8 +26,6 @@ type Config struct {
 	Name string `yaml:"name"`
 	Addr string `yaml:"addr"`
 
-	// TLSConfig, when non-nil, makes the runner serve HTTPS (via ServeTLS).
-	// Set by the app wiring from the shared config.TLS; not loaded from YAML.
 	TLSConfig *tls.Config `yaml:"-"`
 
 	BaseContext func(net.Listener) context.Context                    `yaml:"-"`

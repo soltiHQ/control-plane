@@ -1,8 +1,3 @@
-// Package spec implements task spec management use-cases:
-//   - Paginated listing and retrieval
-//   - Creation, update with version increment, and deletion
-//   - Deployment (rollout creation for target agents)
-//   - Rollout querying by spec.
 package spec
 
 import (
@@ -67,9 +62,9 @@ func (s *Service) Get(ctx context.Context, id string) (*model.Spec, error) {
 	return ts.Clone(), nil
 }
 
-// Create persists a new spec. Rejects specs that carry the
-// deletion-requested flag — a tombstoned ID can only transition to
-// "finalised" (fully deleted), never be resurrected through Create.
+// Create persists a new spec.
+// Rejects specs that carry the deletion-requested flag - a tombstoned ID can only transition to "finalised" (fully deleted),
+// never be resurrected through Create.
 func (s *Service) Create(ctx context.Context, ts *model.Spec) error {
 	if ts == nil {
 		return storage.ErrInvalidArgument
@@ -86,20 +81,13 @@ func (s *Service) Create(ctx context.Context, ts *model.Spec) error {
 	return nil
 }
 
-// Upsert persists changes to an existing task spec. `Version` bumps on
-// every save (edits counter). `Generation` bumps only if the **runtime**
-// fields — those that end up in `SpecToProto` — actually changed;
+// Upsert persists changes to an existing task spec. `Version` bumps on every save (edits counter).
+// `Generation` bumps only if the **runtime** fields - those that end up in `SpecToProto`: actually changed;
 // metadata-only edits (rename, target-list) never rotate live tasks.
 //
-// `expectedVersion` is the optimistic-concurrency CAS token: the client
-// sends the version it last read, and Upsert rejects with a
-// [ConflictError] if the stored version has advanced in the meantime.
-// Pass `0` to opt out of the check (background jobs with no rival
-// writer); interactive UI flows should always pass the observed version.
-//
-// Save is not a deploy: rollouts stay where they are. The detail page
-// surfaces the drift ("spec gen 2, rollouts at gen 1") and the user must
-// click Deploy to apply.
+// `expectedVersion` is the optimistic-concurrency CAS token:
+// the client sends the version it last read, and Upsert rejects with a [ConflictError] if the stored version has advanced in the meantime.
+// Pass `0` to opt out of the check (background jobs with no rival writer); interactive UI flows should always pass the observed version.
 func (s *Service) Upsert(ctx context.Context, ts *model.Spec, expectedVersion int) error {
 	if ts == nil {
 		return storage.ErrInvalidArgument
@@ -110,25 +98,24 @@ func (s *Service) Upsert(ctx context.Context, ts *model.Spec, expectedVersion in
 		return err
 	}
 
-	// A spec that has been marked for deletion is a tombstone: the sync
-	// runner is in the middle of tearing it down on agents and the
-	// finalizer is waiting to drop the row. Any further Upsert would
-	// resurrect runtime state on top of an in-flight uninstall — chaos.
+	// A spec that has been marked for deletion is a tombstone:
+	// the sync runner is in the middle of tearing it down on agents, and the finalizer is waiting to drop the row.
+	// Any further Upsert would resurrect the runtime state on top of an in-flight uninstallation chaos.
 	// Reject; the only legal transition is "finalized and gone".
 	if old.DeletionRequested() {
 		return storage.ErrInvalidArgument
 	}
 
-	// Optimistic-concurrency check. expectedVersion == 0 opts out;
+	// Optimistic-concurrency check.
+	// expectedVersion == 0 opts out;
 	// interactive UI must always pass what the user's load() returned.
 	if expectedVersion > 0 && old.Version() != expectedVersion {
 		return &ConflictError{Expected: expectedVersion, Actual: old.Version()}
 	}
 
-	// The handler hands us a *model.Spec mutated from the current stored
-	// instance, so `old` and `ts` can share pointer-equal kindConfig
-	// maps. Compare before bumping version/generation: RuntimeEquals is
-	// cheap and honest about which fields count as "runtime".
+	// The handler hands us a *model.Spec mutated from the current stored instance.
+	// `old` and `ts` can share pointer-equal kindConfig maps.
+	// Compare before bumping version/generation: RuntimeEquals are inexpensive and honest about which fields count as "runtime".
 	runtimeChanged := !old.RuntimeEquals(ts)
 
 	ts.IncrementVersion()
@@ -148,13 +135,13 @@ func (s *Service) Upsert(ctx context.Context, ts *model.Spec, expectedVersion in
 	return nil
 }
 
-// Delete soft-deletes a spec: it flips `DeletionRequested` and marks
-// every rollout `Intent=Uninstall, Pending`. The sync runner performs
-// `DeleteTask` on each agent; the finalizer (run at the end of each
-// sync tick) actually drops the spec row once all rollouts are gone.
+// Delete soft-deletes a spec:
+// it flips `DeletionRequested` and marks every rollout `Intent=Uninstall, Pending`.
 //
-// If there are no rollouts (nobody ever deployed), the spec is removed
-// synchronously — no reason to tombstone.
+// The sync runner performs `DeleteTask` on each agent; the finalizer (run at the end of each sync tick)
+// actually drops the spec row once all rollouts are gone.
+//
+// If there are no rollouts (nobody ever deployed), the spec is removed synchronously - no reason to tombstone.
 func (s *Service) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return storage.ErrInvalidArgument
@@ -183,7 +170,7 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 		}
 
 		ts.MarkForDeletion()
-		if err := tx.UpsertSpec(ctx, ts); err != nil {
+		if err = tx.UpsertSpec(ctx, ts); err != nil {
 			return err
 		}
 		for _, r := range rolloutsRes.Items {
@@ -192,7 +179,7 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 			}
 			r.SetIntent(enum.RolloutIntentUninstall)
 			r.MarkPending(ts.Version())
-			if err := tx.UpsertRollout(ctx, r); err != nil {
+			if err = tx.UpsertRollout(ctx, r); err != nil {
 				return err
 			}
 		}
@@ -211,15 +198,10 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// ForceDelete drops a spec and all its rollouts immediately, without
-// waiting for agents to confirm task teardown. Use sparingly — any task
-// still running on an agent becomes orphaned: the agent keeps running
-// it until its own lifecycle ends or a human manually cancels it.
+// ForceDelete drops a spec and all its rollouts immediately, without waiting for agents to confirm task teardown.
 //
-// Intended escape hatch for the case where a spec's uninstall rollouts
-// are stuck (agent offline for days, retries exhausted) and the user
-// explicitly accepts the orphan-task risk. The handler/UI must gate
-// this behind a confirmation dialog.
+// Use sparingly - any task still running on an agent becomes orphaned:
+// the agent keeps running it until its own lifecycle ends or a human manually cancels it.
 func (s *Service) ForceDelete(ctx context.Context, id string) error {
 	if id == "" {
 		return storage.ErrInvalidArgument
@@ -238,9 +220,8 @@ func (s *Service) ForceDelete(ctx context.Context, id string) error {
 	return nil
 }
 
-// Rollouts returns all rollouts matching the given criteria. The
-// service owns the translation from domain-level criteria to the
-// backend-specific filter — callers never import the storage backend.
+// Rollouts return all rollouts matching the given criteria.
+// The service owns the translation from domain-level criteria to the backend-specific filter - callers never import the storage backend.
 func (s *Service) Rollouts(ctx context.Context, c storage.RolloutQueryCriteria) ([]*model.Rollout, error) {
 	res, err := s.store.ListRollouts(ctx,
 		s.store.BuildRolloutFilter(c),
@@ -259,8 +240,8 @@ func (s *Service) Rollouts(ctx context.Context, c storage.RolloutQueryCriteria) 
 	return out, nil
 }
 
-// RolloutsBySpec is a thin wrapper over `Rollouts` that always filters
-// by the given spec. Results are cloned so callers can mutate freely.
+// RolloutsBySpec is a thin wrapper over `Rollouts` that always filters by the given spec.
+// Results are cloned so callers can mutate freely.
 func (s *Service) RolloutsBySpec(ctx context.Context, specID string) ([]*model.Rollout, error) {
 	if specID == "" {
 		return nil, storage.ErrInvalidArgument
@@ -284,20 +265,17 @@ func (s *Service) RolloutsBySpec(ctx context.Context, specID string) ([]*model.R
 	return out, nil
 }
 
-// Deploy is the reconciler that maps the current desired state (spec
-// targets + spec generation) onto the set of Rollout records. It is
-// idempotent — clicking Deploy on a fully-synced spec is a no-op.
+// Deploy is the reconciler that maps the current desired state (spec targets + spec generation) onto the set of Rollout records.
+// It is idempotent: clicking Deploy on a fully-synced spec is a no-op.
 //
-// For each agent we decide:
-//
-//   - Agent in `spec.Targets`, no rollout yet           → create, Intent=Install
+// For each agent:
+//   - Agent in `spec.Targets`, no rollout yet            → create, Intent=Install
 //   - Agent in `spec.Targets`, rollout behind generation → Intent=Update
 //   - Agent in `spec.Targets`, rollout at current gen    → leave (Noop)
 //   - Agent NOT in `spec.Targets`, rollout exists        → Intent=Uninstall
 //
-// Deploying a spec flagged for deletion is rejected — the only valid
-// transition from `DeletionRequested=true` is "finalized" (rows drain,
-// finalizer removes the spec).
+// Deploying a spec flagged for deletion is rejected - the only valid transition from `DeletionRequested=true` is "finalized"
+// (rows drain, finalizer removes the spec).
 func (s *Service) Deploy(ctx context.Context, specID string) error {
 	if specID == "" {
 		return storage.ErrInvalidArgument

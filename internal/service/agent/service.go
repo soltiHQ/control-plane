@@ -1,7 +1,3 @@
-// Package agent implements agent management use-cases:
-//   - Paginated listing and retrieval
-//   - Upsert with label and heartbeat preservation
-//   - Control-plane label patching.
 package agent
 
 import (
@@ -72,9 +68,8 @@ func (s *Service) Get(ctx context.Context, id string) (*model.Agent, error) {
 
 // Upsert an agent.
 //
-// If the agent already exists, control-plane owned labels and the original
-// createdAt timestamp are preserved because they are not part of the
-// discovery payload reported by the agent.
+// If the agent already exists, control-plane owned labels and the original createdAt timestamp are preserved
+// because they are not part of the discovery payload reported by the agent.
 func (s *Service) Upsert(ctx context.Context, m *model.Agent) error {
 	var existed bool
 	existing, err := s.store.GetAgent(ctx, m.ID())
@@ -139,9 +134,9 @@ func (s *Service) PatchLabels(ctx context.Context, req PatchLabels) (*model.Agen
 	return agent.Clone(), nil
 }
 
-// replaceLabels reconciles the agent's labels toward the desired set as a diff
-// (not delete-all + add-all), so that re-applying the same labels is a true
-// no-op and leaves UpdatedAt untouched. An empty value means "remove the key".
+// replaceLabels reconciles the agent's labels toward the desired set as a diff (not delete-all + add-all),
+// re-applying the same labels is a true no-op and leaves UpdatedAt untouched.
+// An empty value means "remove the key".
 func replaceLabels(a *model.Agent, labels map[string]string) {
 	for k := range a.LabelsAll() {
 		if v, ok := labels[k]; !ok || v == "" {

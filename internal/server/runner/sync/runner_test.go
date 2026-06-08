@@ -15,7 +15,16 @@ import (
 	"github.com/soltiHQ/control-plane/internal/event"
 	"github.com/soltiHQ/control-plane/internal/proxy"
 	"github.com/soltiHQ/control-plane/internal/storage/inmemory"
+	"github.com/soltiHQ/control-plane/internal/transport/errkind"
 )
+
+// agentNotFound mirrors what the proxy returns for an agent-side 404: an error
+// that errkind classifies as NotFound via its ErrorKind() escape hatch. Tests
+// feed this (not a bare string) so isNotFound matches production behavior.
+type agentNotFound struct{}
+
+func (agentNotFound) Error() string           { return "proxy: task not found" }
+func (agentNotFound) ErrorKind() errkind.Kind { return errkind.NotFound }
 
 // --- fakes ---
 
@@ -96,7 +105,6 @@ func newFakeRunner(t *testing.T, fp *fakeProxy) (*Runner, *inmemory.Store, *even
 		logger: zerolog.New(io.Discard),
 		store:  store,
 		cfg:    Config{}.withDefaults(),
-		stop:   make(chan struct{}),
 	}
 	return r, store, hub
 }
@@ -233,7 +241,7 @@ func TestReconcileUpdateApplyFailureKeepsOldTaskID(t *testing.T) {
 // rollout. Agents reboot and lose state; CP shouldn't wedge.
 func TestReconcileUninstallTreatsDeleteTaskNotFoundAsSuccess(t *testing.T) {
 	fp := &fakeProxy{
-		deleteErr: []error{errors.New("proxy: unexpected status: 404 TaskNotFound: not found")},
+		deleteErr: []error{agentNotFound{}},
 	}
 	r, store, _ := newFakeRunner(t, fp)
 	_ = seedSpecAndAgent(t, store, "sp-1", "agent-a")

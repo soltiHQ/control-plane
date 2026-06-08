@@ -142,9 +142,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		errs []error
 		wg   sync.WaitGroup
 	)
-	for i := len(s.runners) - 1; i >= 0; i-- {
-		r := s.runners[i]
-
+	for _, r := range s.runners {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
