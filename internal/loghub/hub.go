@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 
 	taskv1 "github.com/soltiHQ/control-plane/api/gen/solti/task/v1"
 )
@@ -72,6 +71,12 @@ func New(open OpenFunc, opts Options) *Hub {
 //
 // Slow readers receive a synthetic Lagged event when they fall behind
 // the source, so they can render the gap without polluting later events.
+//
+// Racing a teardown: if the backing source is ending concurrently, Subscribe
+// either returns ErrSourceClosed (the source was already torn down) or, more
+// rarely, a valid channel that the Hub closes immediately with no events
+// delivered. Callers should treat both as "retry": a fresh Subscribe reopens
+// the source.
 func (h *Hub) Subscribe(ctx context.Context, agentID, taskID string) (<-chan *taskv1.StreamTaskLogsResponse, func(), error) {
 	k := key{agentID: agentID, taskID: taskID}
 
@@ -125,7 +130,7 @@ type source struct {
 
 type sub struct {
 	ch      chan *taskv1.StreamTaskLogsResponse
-	dropped uint64 // atomic; pending Lagged count
+	dropped uint64 // pending Lagged count; guarded by source.mu
 }
 
 func (s *source) addSub(buffer int) (<-chan *taskv1.StreamTaskLogsResponse, func(), error) {
@@ -168,38 +173,40 @@ func (s *source) pump(stream <-chan *taskv1.StreamTaskLogsResponse) {
 	}
 }
 
-// broadcast sends ev to every subscriber. Non-blocking — if a subscriber's
-// buffer is full, the event is dropped and a pending Lagged count is
-// incremented. The next successful send on that subscriber injects a
-// Lagged envelope first so the client can render the gap.
+// broadcast sends ev to every subscriber, holding s.mu for the whole fan-out.
+//
+// The lock is held during the sends — not just to snapshot the set — on
+// purpose: removeSub/shutdown close subscriber channels under s.mu, so sending
+// under the same lock makes "send" and "close" mutually exclusive. Releasing
+// the lock before sending (the obvious optimization) races a concurrent
+// unsubscribe and panics with "send on closed channel" — a closed channel is
+// "ready" for send inside a select, so the default case does not save us.
+// Holding the lock is cheap because every send is non-blocking.
+//
+// If a subscriber's buffer is full the event is dropped and a pending Lagged
+// count is incremented; the next successful send injects a Lagged envelope
+// first so the client can render the gap.
 func (s *source) broadcast(ev *taskv1.StreamTaskLogsResponse) {
 	s.mu.Lock()
-	subs := make([]*sub, 0, len(s.subs))
-	for sb := range s.subs {
-		subs = append(subs, sb)
-	}
-	s.mu.Unlock()
+	defer s.mu.Unlock()
 
-	for _, sb := range subs {
-		// If the subscriber has a pending lagged-count from earlier
-		// drops, try to flush a Lagged event first. If even that doesn't
-		// fit, keep the count for later.
-		if dropped := atomic.LoadUint64(&sb.dropped); dropped > 0 {
+	for sb := range s.subs {
+		if sb.dropped > 0 {
 			lagged := &taskv1.StreamTaskLogsResponse{
-				Kind: &taskv1.StreamTaskLogsResponse_Lagged{Lagged: &taskv1.Lagged{Skipped: dropped}},
+				Kind: &taskv1.StreamTaskLogsResponse_Lagged{Lagged: &taskv1.Lagged{Skipped: sb.dropped}},
 			}
 			select {
 			case sb.ch <- lagged:
-				atomic.StoreUint64(&sb.dropped, 0)
+				sb.dropped = 0
 			default:
-				atomic.AddUint64(&sb.dropped, 1)
+				sb.dropped++
 				continue
 			}
 		}
 		select {
 		case sb.ch <- ev:
 		default:
-			atomic.AddUint64(&sb.dropped, 1)
+			sb.dropped++
 		}
 	}
 }

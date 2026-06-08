@@ -1,15 +1,17 @@
 # internal/proxy
 Outbound communication with agents.
-The control plane calls INTO agents to list tasks, submit specs, etc.
+The control plane calls INTO agents to list tasks, apply specs, stream logs, etc.
 
 ## Package map
 ```text
 proxy/
 ├── proxy.go        AgentProxy interface, request/response DTOs
 ├── pool.go         Pool — connection manager (HTTP transport + gRPC conn cache)
-├── httpclient.go   httpClient interface, doGet[T] / doPost helpers
+├── httpclient.go   httpClient interface, proto-JSON GET/PUT/DELETE helpers
 ├── v1_http.go      httpProxyV1 — AgentProxy over HTTP (API v1)
-├── v1_grpc.go      grpcProxyV1 — AgentProxy over gRPC (API v1, partial)
+├── v1_grpc.go      grpcProxyV1 — AgentProxy over gRPC (API v1)
+├── convert.go      domain ⇆ proto conversion (SpecToProto, task mapping)
+├── agenterr.go     AgentError — anti-corruption: agent wire status → errkind.Kind
 └── error.go        sentinel errors
 ```
 
@@ -28,11 +30,11 @@ proxy/
    └────┬────────────────┘
         │
         ▼
-  AgentProxy.SubmitTask / ListTasks
+  AgentProxy.ApplyTask / ListTasks / …
         │
    ┌────┴────────────────┐
-   │ doPost / doGet[T]   │ genv1.SoltiApiClient
-   │ (httpclient.go)     │ (proto-generated)
+   │ proto-JSON over HTTP │ taskv1.TaskServiceClient
+   │ (httpclient.go)      │ (proto-generated)
    └─────────────────────┘
 ```
 
@@ -44,29 +46,50 @@ proxy/
 ```
 - `Get(endpoint, type, version)` dispatches to versioned factory (`getV1`)
 - `Close()` drains HTTP idle conns + closes all gRPC conns
+- Outbound TLS (CP-as-client) is configured at `NewPool`; nil keeps the
+  pre-TLS plaintext behavior (HTTP TLS-1.2 for `https://`, gRPC insecure).
 
 ## AgentProxy interface
 ```go
 type AgentProxy interface {
-    ListTasks(ctx, filter)      → (*TaskListResponse, error)
-    SubmitTask(ctx, submission) → error
+    ListTasks(ctx, filter)        → (*ListTasksResponse, error)
+    ApplyTask(ctx, submission)    → (taskID string, error)   // supersede-or-install
+    GetTask(ctx, taskID)          → (*GetTaskResponse, error)
+    ListTaskRuns(ctx, taskID)     → (*ListTaskRunsResponse, error)
+    DeleteTask(ctx, taskID)       → error                     // idempotent
+    StreamTaskLogs(ctx, taskID)   → (<-chan *StreamTaskLogsResponse, error)
 }
 ```
+Methods beyond `ListTasks`/`ApplyTask` require the agent to advertise the
+matching capability; callers must check `agent.HasCapability` before invoking.
 
 ## API v1 support matrix
 
-| Method       | HTTP | gRPC |
-|--------------|------|------|
-| `ListTasks`  | ✓    | ✓    |
-| `SubmitTask` | ✓    | —    |
+| Method           | HTTP | gRPC |
+|------------------|------|------|
+| `ListTasks`      | ✓    | ✓    |
+| `ApplyTask`      | ✓    | ✓    |
+| `GetTask`        | ✓    | ✓    |
+| `ListTaskRuns`   | ✓    | ✓    |
+| `DeleteTask`     | ✓    | ✓    |
+| `StreamTaskLogs` | ✓    | ✓    |
 
-gRPC stubs return `ErrSubmitTask`: proto does not yet define the RPC.
+## Error handling
+Every agent call wraps its result through `agentError`, producing an
+`*AgentError` that (a) keeps the op sentinel + underlying error in the chain
+(for `errors.Is`) and (b) translates the agent's wire status — gRPC code or the
+HTTP status carried by `unexpectedStatusError` — into an `errkind.Kind` at the
+boundary. Downstream code classifies via the single `errkind` contract without
+sniffing transport details. Mid-stream `StreamTaskLogs` failures are surfaced
+by closing the channel, not via an error return.
 
 ## HTTP helpers (httpclient.go)
-| Helper       | Purpose                                            |
-|--------------|----------------------------------------------------|
-| `doGet[T]`   | GET + JSON decode into `*T`                        |
-| `doPost`     | POST JSON body, accept 200 / 201 / 204             |
+| Helper                      | Purpose                                                  |
+|-----------------------------|----------------------------------------------------------|
+| `doProtoJSONGet`            | GET + decode proto-JSON into a `proto.Message`           |
+| `doProtoJSONPutDecoding`    | PUT proto-JSON body, decode proto-JSON response          |
+| `doDelete`                  | DELETE, accept 200 / 204                                 |
 
-Both use `httpClient` interface (`Do` method) for testability.
-Timeouts are controlled by the caller's `ctx`, not hardcoded.
+All use the `httpClient` interface (`Do`) for testability. Non-2xx responses
+surface the SDK error envelope (`{"error","message"}`) with the status code via
+`formatUnexpectedStatus`. Timeouts are controlled by the caller's `ctx`.

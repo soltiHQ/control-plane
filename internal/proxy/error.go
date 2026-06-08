@@ -19,14 +19,12 @@ var (
 	ErrUnexpectedStatus = errors.New("proxy: unexpected status")
 	// ErrDecode indicates the agent's response body could not be decoded.
 	ErrDecode = errors.New("proxy: decode response")
-	// ErrListTasks indicates a gRPC ListTasks call failed.
-	ErrListTasks = errors.New("proxy: grpc list tasks")
+	// ErrListTasks indicates a ListTasks call failed (HTTP or gRPC).
+	ErrListTasks = errors.New("proxy: list tasks")
 	// ErrUnsupportedAPIVersion indicates the agent reported an unknown API version.
 	ErrUnsupportedAPIVersion = errors.New("proxy: unsupported api version")
 	// ErrApplyTask indicates an apply (supersede-or-install) call failed.
 	ErrApplyTask = errors.New("proxy: apply task")
-	// ErrExportSpecs indicates an export call failed.
-	ErrExportSpecs = errors.New("proxy: export task specs")
 	// ErrGetTask indicates a GetTask call failed.
 	ErrGetTask = errors.New("proxy: get task")
 	// ErrListTaskRuns indicates a ListTaskRuns call failed.

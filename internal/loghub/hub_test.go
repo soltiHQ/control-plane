@@ -3,6 +3,7 @@ package loghub_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -125,4 +126,55 @@ func TestSubscribeReopensAfterEOF(t *testing.T) {
 	if opens < 1 {
 		t.Fatal("expected at least one open")
 	}
+}
+
+// TestConcurrentChurnDuringStream stresses broadcast against concurrent
+// unsubscribes: many subscribers churn (subscribe → read → unsubscribe) on the
+// same key while the backing source streams continuously. On the pre-fix
+// broadcast (which released the lock before sending) this panics with
+// "send on closed channel"; with the fix it stays clean. Run with -race for
+// full coverage of the send/close interleaving.
+func TestConcurrentChurnDuringStream(t *testing.T) {
+	// open mirrors the real proxy contract: a producer goroutine fires events
+	// until ctx is cancelled, then closes the channel.
+	open := func(ctx context.Context, _, _ string) (<-chan *taskv1.StreamTaskLogsResponse, error) {
+		ch := make(chan *taskv1.StreamTaskLogsResponse)
+		go func() {
+			defer close(ch)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case ch <- chunk("x"):
+				}
+			}
+		}()
+		return ch, nil
+	}
+	// Buffer 1 → frequent buffer-full drops, exercising both the Lagged path
+	// and plain sends under contention.
+	hub := loghub.New(open, loghub.Options{SubscriberBuffer: 1})
+
+	var wg sync.WaitGroup
+	deadline := time.Now().Add(300 * time.Millisecond)
+	for i := 0; i < 64; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for time.Now().Before(deadline) {
+				ch, unsub, err := hub.Subscribe(context.Background(), "ag", "t")
+				if err != nil {
+					continue // ErrSourceClosed is a retryable race outcome
+				}
+				for j := 0; j < 3; j++ {
+					select {
+					case <-ch:
+					default:
+					}
+				}
+				unsub()
+			}
+		}()
+	}
+	wg.Wait()
 }

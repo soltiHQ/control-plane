@@ -28,13 +28,6 @@ type TaskSubmission struct {
 	Spec *taskv1.CreateSpec
 }
 
-// SpecExport describes a task spec as reported by an agent via export.
-type SpecExport struct {
-	Version int            `json:"version"`
-	Slot    string         `json:"slot"`
-	Kind    map[string]any `json:"kind,omitempty"`
-}
-
 // AgentProxy is the interface for outbound communication with an agent.
 //
 // Methods beyond ListTasks/ApplyTask require the agent to declare the
