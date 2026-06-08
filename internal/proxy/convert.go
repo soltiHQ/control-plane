@@ -66,6 +66,19 @@ func SpecToProto(ts *model.Spec) (*taskv1.CreateSpec, error) {
 	return out, nil
 }
 
+// CreateSpecWirePreview marshals a proto CreateSpec into canonical proto-JSON
+// bytes suitable for displaying in the UI as the exact payload the
+// control-plane would send to an agent.
+func CreateSpecWirePreview(spec *taskv1.CreateSpec) (json.RawMessage, error) {
+	if spec == nil {
+		return nil, nil
+	}
+	return protojson.MarshalOptions{
+		UseProtoNames:   false,
+		EmitUnpopulated: false,
+	}.Marshal(spec)
+}
+
 // buildTaskKind re-serializes the UI-stored kind config map through protojson
 // so the UI-level JSON (which is expected to already follow proto schema
 // field names) lands in the strongly-typed generated struct without

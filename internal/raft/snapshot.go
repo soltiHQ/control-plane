@@ -38,12 +38,12 @@ func (s *fsmSnapshot) Persist(sink hraft.SnapshotSink) error {
 		Agents:           make([]*raftv1.AgentMsg, 0, len(s.content.Agents)),
 		AgentCredentials: make([]*raftv1.AgentCredentialMsg, 0, len(s.content.AgentCreds)),
 		Users:            make([]*raftv1.UserMsg, 0, len(s.content.Users)),
-		Roles:       make([]*raftv1.RoleMsg, 0, len(s.content.Roles)),
-		Credentials: make([]*raftv1.CredentialMsg, 0, len(s.content.Credentials)),
-		Verifiers:   make([]*raftv1.VerifierMsg, 0, len(s.content.Verifiers)),
-		Sessions:    make([]*raftv1.SessionMsg, 0, len(s.content.Sessions)),
-		Specs:       make([]*raftv1.SpecMsg, 0, len(s.content.Specs)),
-		Rollouts:    make([]*raftv1.RolloutMsg, 0, len(s.content.Rollouts)),
+		Roles:            make([]*raftv1.RoleMsg, 0, len(s.content.Roles)),
+		Credentials:      make([]*raftv1.CredentialMsg, 0, len(s.content.Credentials)),
+		Verifiers:        make([]*raftv1.VerifierMsg, 0, len(s.content.Verifiers)),
+		Sessions:         make([]*raftv1.SessionMsg, 0, len(s.content.Sessions)),
+		Specs:            make([]*raftv1.SpecMsg, 0, len(s.content.Specs)),
+		Rollouts:         make([]*raftv1.RolloutMsg, 0, len(s.content.Rollouts)),
 	}
 	for _, a := range s.content.Agents {
 		msg.Agents = append(msg.Agents, wire.AgentToProto(a))
