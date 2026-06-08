@@ -45,15 +45,7 @@ func (s *Service) ListByUser(ctx context.Context, q ListByUserQuery) (*Page, err
 	if limit > 0 && len(items) > limit {
 		items = items[:limit]
 	}
-
-	out := make([]*model.Credential, 0, len(items))
-	for _, c := range items {
-		if c == nil {
-			continue
-		}
-		out = append(out, c.Clone())
-	}
-	return &Page{Items: out}, nil
+	return &Page{Items: items}, nil
 }
 
 // Get returns a single credential by ID.
@@ -61,15 +53,7 @@ func (s *Service) Get(ctx context.Context, id string) (*model.Credential, error)
 	if id == "" {
 		return nil, storage.ErrInvalidArgument
 	}
-
-	c, err := s.store.GetCredential(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if c == nil {
-		return nil, storage.ErrInternal
-	}
-	return c.Clone(), nil
+	return s.store.GetCredential(ctx, id)
 }
 
 // Delete removes a credential by ID and cascades verifier deletion.
@@ -95,9 +79,6 @@ func (s *Service) Delete(ctx context.Context, req DeleteRequest) error {
 }
 
 // SetPassword creates or replaces password auth material for a user.
-//
-// CredentialID is optional: if empty, the existing password credential is looked up or a new one is generated as "cred-{userID}".
-// VerifierID is always derived as "ver-{credID}".
 func (s *Service) SetPassword(ctx context.Context, req SetPasswordRequest) error {
 	if req.UserID == "" || req.Password == "" {
 		return auth.ErrInvalidRequest
@@ -133,7 +114,7 @@ func (s *Service) SetPassword(ctx context.Context, req SetPasswordRequest) error
 		if err != nil {
 			return storage.ErrInvalidArgument
 		}
-		if err := tx.UpsertCredential(ctx, cred); err != nil {
+		if err = tx.UpsertCredential(ctx, cred); err != nil {
 			return err
 		}
 
@@ -142,7 +123,7 @@ func (s *Service) SetPassword(ctx context.Context, req SetPasswordRequest) error
 		if err != nil {
 			return err
 		}
-		if err := tx.DeleteVerifierByCredential(ctx, credID); err != nil {
+		if err = tx.DeleteVerifierByCredential(ctx, credID); err != nil {
 			return err
 		}
 		return tx.UpsertVerifier(ctx, ver)

@@ -35,15 +35,7 @@ func (s *Service) List(ctx context.Context, q ListQuery) (*Page, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	out := make([]*model.Role, 0, len(res.Items))
-	for _, r := range res.Items {
-		if r == nil {
-			continue
-		}
-		out = append(out, r.Clone())
-	}
-	return &Page{Items: out, NextCursor: res.NextCursor}, nil
+	return &Page{Items: res.Items, NextCursor: res.NextCursor}, nil
 }
 
 // Get returns a single role by ID.
@@ -51,14 +43,7 @@ func (s *Service) Get(ctx context.Context, id string) (*model.Role, error) {
 	if id == "" {
 		return nil, storage.ErrInvalidArgument
 	}
-	r, err := s.store.GetRole(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if r == nil {
-		return nil, storage.ErrInternal
-	}
-	return r.Clone(), nil
+	return s.store.GetRole(ctx, id)
 }
 
 // Upsert creates or replaces a role.

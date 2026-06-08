@@ -38,15 +38,7 @@ func (s *Service) List(ctx context.Context, q ListQuery) (*Page, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	out := make([]*model.User, 0, len(res.Items))
-	for _, u := range res.Items {
-		if u == nil {
-			continue
-		}
-		out = append(out, u.Clone())
-	}
-	return &Page{Items: out, NextCursor: res.NextCursor}, nil
+	return &Page{Items: res.Items, NextCursor: res.NextCursor}, nil
 }
 
 // Get returns a single user by ID.
@@ -54,14 +46,7 @@ func (s *Service) Get(ctx context.Context, id string) (*model.User, error) {
 	if id == "" {
 		return nil, storage.ErrInvalidArgument
 	}
-	u, err := s.store.GetUser(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if u == nil {
-		return nil, storage.ErrInternal
-	}
-	return u.Clone(), nil
+	return s.store.GetUser(ctx, id)
 }
 
 // GetBySubject returns a single user by authentication subject.
@@ -69,14 +54,7 @@ func (s *Service) GetBySubject(ctx context.Context, subject string) (*model.User
 	if subject == "" {
 		return nil, storage.ErrInvalidArgument
 	}
-	u, err := s.store.GetUserBySubject(ctx, subject)
-	if err != nil {
-		return nil, err
-	}
-	if u == nil {
-		return nil, storage.ErrInternal
-	}
-	return u.Clone(), nil
+	return s.store.GetUserBySubject(ctx, subject)
 }
 
 // Delete a user by ID.
@@ -139,8 +117,13 @@ func (s *Service) Upsert(ctx context.Context, u *model.User) error {
 	u.SetEmail(email)
 
 	err := s.store.WithTx(ctx, func(tx storage.Storage) error {
-		if existing, err := tx.GetUserBySubject(ctx, subject); err == nil && existing.ID() != u.ID() {
-			return storage.ErrAlreadyExists
+		switch existing, err := tx.GetUserBySubject(ctx, subject); {
+		case err == nil:
+			if existing.ID() != u.ID() {
+				return storage.ErrAlreadyExists
+			}
+		case !errors.Is(err, storage.ErrNotFound):
+			return err
 		}
 		if ids := u.RoleIDsAll(); len(ids) > 0 {
 			if _, err := tx.GetRoles(ctx, ids); err != nil {

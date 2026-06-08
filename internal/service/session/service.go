@@ -34,14 +34,7 @@ func (s *Service) Get(ctx context.Context, id string) (*model.Session, error) {
 	if id == "" {
 		return nil, storage.ErrInvalidArgument
 	}
-	sess, err := s.store.GetSession(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if sess == nil {
-		return nil, storage.ErrInternal
-	}
-	return sess.Clone(), nil
+	return s.store.GetSession(ctx, id)
 }
 
 // ListByUser returns all sessions for a user.
@@ -59,15 +52,7 @@ func (s *Service) ListByUser(ctx context.Context, q ListByUserQuery) (*Page, err
 	if limit > 0 && len(items) > limit {
 		items = items[:limit]
 	}
-
-	out := make([]*model.Session, 0, len(items))
-	for _, sess := range items {
-		if sess == nil {
-			continue
-		}
-		out = append(out, sess.Clone())
-	}
-	return &Page{Items: out}, nil
+	return &Page{Items: items}, nil
 }
 
 // Delete deletes a single session by ID.

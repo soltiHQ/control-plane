@@ -37,15 +37,8 @@ func (s *Service) List(ctx context.Context, q ListQuery) (*Page, error) {
 		return nil, err
 	}
 
-	out := make([]*model.Spec, 0, len(res.Items))
-	for _, ts := range res.Items {
-		if ts == nil {
-			continue
-		}
-		out = append(out, ts.Clone())
-	}
 	return &Page{
-		Items:      out,
+		Items:      res.Items,
 		NextCursor: res.NextCursor,
 	}, nil
 }
@@ -55,16 +48,10 @@ func (s *Service) Get(ctx context.Context, id string) (*model.Spec, error) {
 	if id == "" {
 		return nil, storage.ErrInvalidArgument
 	}
-	ts, err := s.store.GetSpec(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return ts.Clone(), nil
+	return s.store.GetSpec(ctx, id)
 }
 
 // Create persists a new spec.
-// Rejects specs that carry the deletion-requested flag - a tombstoned ID can only transition to "finalised" (fully deleted),
-// never be resurrected through Create.
 func (s *Service) Create(ctx context.Context, ts *model.Spec) error {
 	if ts == nil {
 		return storage.ErrInvalidArgument
@@ -223,18 +210,10 @@ func (s *Service) Rollouts(ctx context.Context, c storage.RolloutQueryCriteria) 
 	if err != nil {
 		return nil, err
 	}
-
-	out := make([]*model.Rollout, 0, len(res.Items))
-	for _, r := range res.Items {
-		if r != nil {
-			out = append(out, r)
-		}
-	}
-	return out, nil
+	return res.Items, nil
 }
 
 // RolloutsBySpec is a thin wrapper over `Rollouts` that always filters by the given spec.
-// Results are cloned so callers can mutate freely.
 func (s *Service) RolloutsBySpec(ctx context.Context, specID string) ([]*model.Rollout, error) {
 	if specID == "" {
 		return nil, storage.ErrInvalidArgument
@@ -247,15 +226,7 @@ func (s *Service) RolloutsBySpec(ctx context.Context, specID string) ([]*model.R
 	if err != nil {
 		return nil, err
 	}
-
-	out := make([]*model.Rollout, 0, len(res.Items))
-	for _, ss := range res.Items {
-		if ss == nil {
-			continue
-		}
-		out = append(out, ss.Clone())
-	}
-	return out, nil
+	return res.Items, nil
 }
 
 // Deploy is the reconciler that maps the current desired state (spec targets + spec generation) onto the set of Rollout records.
@@ -291,7 +262,7 @@ func (s *Service) Deploy(ctx context.Context, specID string) error {
 		targets := ts.Targets()
 
 		for _, agentID := range targets {
-			if _, err := tx.GetAgent(ctx, agentID); err != nil {
+			if _, err = tx.GetAgent(ctx, agentID); err != nil {
 				missing = append(missing, agentID)
 			}
 		}
@@ -333,7 +304,7 @@ func (s *Service) Deploy(ctx context.Context, specID string) error {
 					update++
 				}
 				r.MarkPending(ts.Version())
-				if err := tx.UpsertRollout(ctx, r); err != nil {
+				if err = tx.UpsertRollout(ctx, r); err != nil {
 					return err
 				}
 				continue
@@ -343,7 +314,7 @@ func (s *Service) Deploy(ctx context.Context, specID string) error {
 				return err
 			}
 			r.SetIntent(enum.RolloutIntentInstall)
-			if err := tx.UpsertRollout(ctx, r); err != nil {
+			if err = tx.UpsertRollout(ctx, r); err != nil {
 				return err
 			}
 			install++
@@ -355,7 +326,7 @@ func (s *Service) Deploy(ctx context.Context, specID string) error {
 			}
 			r.SetIntent(enum.RolloutIntentUninstall)
 			r.MarkPending(ts.Version())
-			if err := tx.UpsertRollout(ctx, r); err != nil {
+			if err = tx.UpsertRollout(ctx, r); err != nil {
 				return err
 			}
 			uninstall++
