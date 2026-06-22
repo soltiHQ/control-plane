@@ -164,6 +164,7 @@ func buildMainHandler(cfg config.Config, logger zerolog.Logger, svc services, au
 	h = middleware.Negotiate(responder.NewJSON(), responder.NewHTML())(h)
 	h = middleware.Leader(leadership, middleware.LeaderOptions{
 		ForwardPort: addrPort(cfg.HTTP.Addr),
+		TargetTLS:   cfg.TLS.Server.Enabled(),
 	})(h)
 	h = middleware.RateLimit(authModel.Limiter)(h)
 	h = middleware.CORS(cfg.CORS)(h)
@@ -171,7 +172,7 @@ func buildMainHandler(cfg config.Config, logger zerolog.Logger, svc services, au
 	return h
 }
 
-func buildDiscoveryHandler(logger zerolog.Logger, agentSVC *agent.Service, eventHub *event.Hub, leadership cluster.Leadership, httpPort int, limiter *ratelimit.Limiter, requireAuth bool) http.Handler {
+func buildDiscoveryHandler(logger zerolog.Logger, agentSVC *agent.Service, eventHub *event.Hub, leadership cluster.Leadership, httpPort int, limiter *ratelimit.Limiter, requireAuth bool, targetTLS bool) http.Handler {
 	var (
 		httpDiscovery = handler.NewHTTPDiscovery(logger, agentSVC, eventHub, requireAuth)
 		mux           = http.NewServeMux()
@@ -179,7 +180,7 @@ func buildDiscoveryHandler(logger zerolog.Logger, agentSVC *agent.Service, event
 	mux.HandleFunc("/api/v1/discovery/sync", httpDiscovery.Sync)
 
 	var h http.Handler = mux
-	h = middleware.Leader(leadership, middleware.LeaderOptions{ForwardPort: httpPort})(h)
+	h = middleware.Leader(leadership, middleware.LeaderOptions{ForwardPort: httpPort, TargetTLS: targetTLS})(h)
 	h = middleware.RateLimit(limiter)(h)
 	h = middleware.Recovery(logger)(h)
 	h = middleware.Logger(logger)(h)

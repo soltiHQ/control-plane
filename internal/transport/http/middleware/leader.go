@@ -40,6 +40,12 @@ type LeaderOptions struct {
 	// ForwardTimeout caps a single proxied write to the leader (time to first response header).
 	// Without it a hung leader would pin the follower's request goroutine indefinitely.
 	ForwardTimeout time.Duration
+
+	// TargetTLS reports whether the leader's target listener serves TLS. The proxy
+	// scheme must follow the TARGET listener, not how the inbound request arrived —
+	// otherwise a plaintext request forwarded to a TLS listener (or vice versa) fails
+	// the handshake ("client sent an HTTP request to an HTTPS server").
+	TargetTLS bool
 }
 
 // Leader routes write requests to the cluster leader.
@@ -84,7 +90,7 @@ func Leader(leadership cluster.Leadership, opts LeaderOptions) func(http.Handler
 				return
 			}
 
-			target, err := buildTarget(leaderAddr, opts.ForwardPort, r.TLS != nil)
+			target, err := buildTarget(leaderAddr, opts.ForwardPort, opts.TargetTLS)
 			if err != nil {
 				http.Error(w, "cluster: bad leader addr", http.StatusBadGateway)
 				return

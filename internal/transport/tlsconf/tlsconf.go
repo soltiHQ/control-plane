@@ -33,7 +33,23 @@ func (c ServerConfig) Validate() error {
 }
 
 // Build returns the server *tls.Config, or (nil, nil) when TLS is disabled.
+//
+// When ClientCAFile is set it enforces mTLS (RequireAndVerifyClientCert). Use this
+// for agent-facing listeners (discovery). For browser-facing listeners (the UI) use
+// [ServerConfig.BuildNoClientAuth] so enabling mTLS for agents does not lock out a
+// browser, which has no client certificate.
 func (c ServerConfig) Build() (*tls.Config, error) {
+	return c.build(true)
+}
+
+// BuildNoClientAuth returns the server *tls.Config WITHOUT requiring a client
+// certificate, even when ClientCAFile is set. This scopes mTLS to the agent-facing
+// listeners while keeping the human-facing UI reachable from a browser.
+func (c ServerConfig) BuildNoClientAuth() (*tls.Config, error) {
+	return c.build(false)
+}
+
+func (c ServerConfig) build(requireClientCert bool) (*tls.Config, error) {
 	if !c.Enabled() {
 		return nil, nil
 	}
@@ -45,7 +61,7 @@ func (c ServerConfig) Build() (*tls.Config, error) {
 		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{cert},
 	}
-	if c.ClientCAFile != "" {
+	if requireClientCert && c.ClientCAFile != "" {
 		pool, err := loadCAPool(c.ClientCAFile)
 		if err != nil {
 			return nil, fmt.Errorf("tls server: client CA: %w", err)

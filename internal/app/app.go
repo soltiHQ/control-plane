@@ -74,9 +74,17 @@ func New(ctx context.Context, cfg config.Config, logger zerolog.Logger) (*App, e
 		logger.Info().Msg("bootstrap skipped: this replica is a follower; leader seeds shared state")
 	}
 
-	// TLS: one server config for all listeners (HTTP, HTTP-discovery, gRPC) and
-	// one client config for outbound calls to agents. Both opt-in (nil = plaintext).
+	// TLS: agent-facing listeners (HTTP-discovery, gRPC) get the full server config,
+	// including mTLS when a client CA is set. The human-facing UI gets the SAME cert
+	// but WITHOUT a client-certificate requirement, so enabling mTLS for agents does
+	// not lock browsers (which have no client cert) out of the dashboard. One client
+	// config for outbound calls to agents. All opt-in (nil = plaintext).
 	serverTLS, err := cfg.TLS.Server.Build()
+	if err != nil {
+		closeOnError(raftShutdown, eventHub)
+		return nil, err
+	}
+	uiServerTLS, err := cfg.TLS.Server.BuildNoClientAuth()
 	if err != nil {
 		closeOnError(raftShutdown, eventHub)
 		return nil, err
@@ -124,7 +132,7 @@ func New(ctx context.Context, cfg config.Config, logger zerolog.Logger) (*App, e
 
 	mainHandler := buildMainHandler(cfg, logger, svc, authModel, proxyPool, eventHub, leadership)
 	httpCfg := cfg.HTTP
-	httpCfg.TLSConfig = serverTLS
+	httpCfg.TLSConfig = uiServerTLS
 	httpRunner, err := httpserver.New(httpCfg, logger, mainHandler)
 	if err != nil {
 		proxyPool.Close()
@@ -132,7 +140,7 @@ func New(ctx context.Context, cfg config.Config, logger zerolog.Logger) (*App, e
 		return nil, err
 	}
 
-	discoveryHandler := buildDiscoveryHandler(logger, svc.agent, eventHub, leadership, addrPort(cfg.HTTPDiscovery.Addr), authModel.Limiter, cfg.AgentAuth.Require)
+	discoveryHandler := buildDiscoveryHandler(logger, svc.agent, eventHub, leadership, addrPort(cfg.HTTPDiscovery.Addr), authModel.Limiter, cfg.AgentAuth.Require, cfg.TLS.Server.Enabled())
 	discoveryCfg := cfg.HTTPDiscovery
 	discoveryCfg.TLSConfig = serverTLS
 	httpDiscoveryRunner, err := httpserver.New(discoveryCfg, logger, discoveryHandler)
